@@ -1,0 +1,10 @@
+{
+	"title": "Frodo",
+	"type": "pdk",
+	"main": "frodo",
+    "icon": "logo.png",
+	"id": "com.emu.app.frodo",
+	"version": "1.0.0",
+	"vendor": "Frodo",
+    "requiredMemory": 15
+}
