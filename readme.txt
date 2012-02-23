@@ -1,12 +1,13 @@
 
-Frodo for webOS, v1.0.0
+Frodo for webOS, v1.0.0 (alpha)
 
 Ported by Roland Schabenberger
 Original Frodo by Christian Bauer
 
 --
 
-Frodo for webOS is a port of the free C=64 emulator Frodo by Christian Bauer.
+Frodo for webOS is a port of the free Commodore C64 emulator Frodo
+by Christian Bauer.
 
 Frodo is a highly portable program and currently has versions for Windows, Mac,
 Linux/Unix, Playstation, Dreamcast and Symbian telephones to mention just a
@@ -19,4 +20,5 @@ published under the GPL.
 
 --
 
+Frodo for webOS homepage: https://github.com/rosc77/frodo4webos
 Frodo homepage: http://frodo.cebix.net

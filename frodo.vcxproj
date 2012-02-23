@@ -71,9 +71,6 @@
     <ClInclude Include="Src\VIC.h" />
     <ClInclude Include="Src\virtual_joystick.h" />
   </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="Src\Frodo.rc" />
-  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>
     </ProjectGuid>
