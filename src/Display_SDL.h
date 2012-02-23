@@ -260,8 +260,7 @@ void C64Display::Update(void)
 	int barW = screenWidth;
 	int barY = out->h-barH;
 
-    zoom_factor = 1;
-	// zoom_factor = out->w / 340;
+	zoom_factor = out->w / 340;
 
 	if (zoom_factor < 1) zoom_factor = 1;
 	else if (zoom_factor > 4) zoom_factor = 4;
