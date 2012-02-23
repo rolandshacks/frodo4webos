@@ -1,0 +1,57 @@
+
+Frodo for webOS, v1.0.0 (alpha)
+
+Ported by Roland Schabenberger
+Original Frodo by Christian Bauer
+
+--
+
+FILES:
+
+Per default, disks (.d64) and tapes (.t64) are to be stored in
+the folder /media/internal/c64.
+
+
+CONTROL:
+
+On your HP touchpad device, tap the following areas/corners to control
+the emulator:
+
+
+    RUN/STOP        OPEN CONTROL PANEL          AUTO RUN
+       *********************************************
+       *                                           *
+       *                                           *
+       *                                           *
+       *                                           *
+       *                                           *
+       *  STICK                          BUTTON    *
+       *  AREA                           AREA      *
+       *                                           *
+       *                                           *
+       *                                           *
+       *                                           *
+       *                                           *
+       *********************************************
+  TOGGLE LED               SPACE            OPEN KEYBOARD
+
+
+CONTROL PANEL:
+  
+The control panel is used to browse for disks (.d64) or tapes (.t64).
+Just tap on a file to change the loaded disk/tape. 
+
+At the right side, you can also tap to a number of buttons that do
+the following:
+
+   JOY1  : Stick inputs are routed to joystick 1 (port 1).
+   JOY2  : Stick inputs are routed to joystick 2 (port 2). Default. 
+   DRV   : Toggle true 1541 drive emulation. Disabled by default.
+   RESET : Reset C64.
+   F1-F8 : Function keys.
+   ABOUT : Show about box.
+
+--
+
+Frodo for webOS homepage: https://github.com/rosc77/frodo4webos
+Frodo homepage: http://frodo.cebix.net
