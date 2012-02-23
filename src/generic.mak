@@ -90,6 +90,7 @@ ifeq ($(PLATFORM),PALM)
   else
     CC          = arm-none-linux-gnueabi-gcc
     AR          = arm-none-linux-gnueabi-ar
+    CC_STRIP    = arm-none-linux-gnueabi-strip -g -S -d --strip-debug
     STDLIBDIRS  = $(PALMPDK)\device\lib
     STDINCDIRS  = $(PALMPDK)\include $(PALMPDK)\include\SDL
     STDLIBS     = m rt SDL SDL_ttf SDL_image GLES_CM pdl
@@ -121,7 +122,8 @@ ifeq ($(DEBUG),1)
   CC_FLAGS += -g -O0
 else
   # CC_FLAGS += -O2
-  CC_FLAGS += -O3
+  CC_FLAGS += -O3 -s
+  LD_FLAGS += -s
 endif
 
 CC_INCDIRS  = $(addprefix -I,$(INCDIRS) $(PLATFORMINCDIRS) $(STDINCDIRS))
@@ -166,11 +168,19 @@ ifeq ($(DEFAULT),)
 DEFAULT = all
 endif
 
+ifneq ($(DEBUG),1)
+  ifeq ($(PLATFORM),PALM)
+    ifneq ($(EMULATOR),1)  
+      STRIP_CMD = strip
+    endif
+  endif
+endif
+
 ###############################################################################
 
 .PHONY: default all rebuild $(COMPILE) $(BUILD_CMD) $(DEFAULT) compile build killall prepare build_executable build_static
 .PHONY: clean $(UPLOAD) upload debug run shell package resources dump
-.PHONY: $(RESOURCES) upload_target upload_resources
+.PHONY: $(RESOURCES) upload_target upload_resources strip
 .PHONY: prepare_$(BUILD_PLATFORM) clean_$(BUILD_PLATFORM)
 
 default: $(DEFAULT)
@@ -206,7 +216,7 @@ compile: prepare $(CC_OBJ) $(CC_OBJC)
 
 build_executable: $(COMPILE)
 	@echo build executable
-	$(CC) $(CC_OBJ) $(CC_LIBDIRS) $(CC_LIBS) $(LDFLAGS) -o $(OUTFILE)
+	$(CC) $(CC_OBJ) $(CC_LIBDIRS) $(CC_LIBS) $(LD_FLAGS) -o $(OUTFILE)
 
 build_static: $(COMPILE)
 	@echo build static $(CC_OBJ) $(CC_OBJC)
@@ -229,11 +239,15 @@ clean_LINUX:
 
 clean: clean_$(BUILD_PLATFORM)
 
-package: $(BUILD_CMD) resources
+strip:
+	@echo stripping debug symbols
+	$(CC_STRIP) $(OUTFILE)
+
+package: $(BUILD_CMD) $(STRIP_CMD) resources
 	@echo package
 	cmd /C copy $(OUTFILE) $(STAGINGDIR)
-	cmd /C if exist $(RESOURCEDIR)$(NATIVE_SLASH)appinfo.json copy "$(RESOURCEDIR)$(NATIVE_SLASH)appinfo.json" "$(STAGINGDIR)"
-	cmd /C if exist $(RESOURCEDIR)$(NATIVE_SLASH)logo.png copy "$(RESOURCEDIR)$(NATIVE_SLASH)logo.png" "$(STAGINGDIR)"
+	cmd /C if exist appinfo.json copy appinfo.json "$(STAGINGDIR)"
+	cmd /C if exist logo.png copy logo.png "$(STAGINGDIR)"
 	cmd /C echo filemode.755=$(TARGET) > $(STAGINGDIR)$(NATIVE_SLASH)package.properties
 	cmd /C palm-package -o $(TARGETDIR) $(STAGINGDIR)
 
@@ -251,7 +265,7 @@ upload_resources: resources
 	plink -P 10022 root@localhost -pw "" "mkdir -p $(UPLOADDIR)/resources"
 	pscp -scp -P 10022 -pw "" $(RESOURCEDIR)$(NATIVE_SLASH)*.* root@localhost:$(UPLOADDIR)/resources
 
-upload_target: $(BUILD_CMD) killall
+upload_target: $(BUILD_CMD) $(STRIP_CMD) killall
 	@echo upload target
 	plink -P 10022 root@localhost -pw "" "mkdir -p $(UPLOADDIR)"
 	pscp -scp -P 10022 -pw "" $(OUTFILE) root@localhost:$(UPLOADDIR)
@@ -290,5 +304,5 @@ dump:
 	@echo CC_LIBDIRS=$(CC_LIBDIRS)
 	@echo DEVICEOPTS=$(DEVICEOPTS)
 	@echo CC_FLAGS=$(CC_FLAGS)
-	@echo LDFLAGS=$(LDFLAGS)
+	@echo LD_FLAGS=$(LD_FLAGS)
 	@echo UPLOADDIR=$(UPLOADDIR)

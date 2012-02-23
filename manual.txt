@@ -1,8 +1,6 @@
 
-Frodo for webOS, v1.0.0 (alpha)
-
-Ported by Roland Schabenberger
-Original Frodo by Christian Bauer
+USER MANUAL
+Frodo for webOS
 
 --
 
@@ -50,8 +48,3 @@ the following:
    RESET : Reset C64.
    F1-F8 : Function keys.
    ABOUT : Show about box.
-
---
-
-Frodo for webOS homepage: https://github.com/rosc77/frodo4webos
-Frodo homepage: http://frodo.cebix.net

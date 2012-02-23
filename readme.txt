@@ -1,5 +1,6 @@
 
-Frodo for webOS, v1.0.0 (alpha)
+README
+Frodo for webOS
 
 Ported by Roland Schabenberger
 Original Frodo by Christian Bauer
