@@ -970,12 +970,7 @@ bool D64Drive::read_sector(int track, int sector, uint8 *buffer)
 		return false;
 	}
 
-#ifdef AMIGA
-	if (offset != ftell(the_file))
-		fseek(the_file, offset + image_header, SEEK_SET);
-#else
 	fseek(the_file, offset + image_header, SEEK_SET);
-#endif
 	fread(buffer, 256, 1, the_file);
 	return true;
 }

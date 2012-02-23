@@ -21,7 +21,6 @@ EMUTYPE = LINEBASED
 #EMUTYPE = SINGLECYCLE
 
 SRC     = $(wildcard *.cpp)
-DEF    += HAVE_SDL=1
 
 ifeq ($(EMUTYPE),SINGLECYCLE)
   DEF += FRODO_SC

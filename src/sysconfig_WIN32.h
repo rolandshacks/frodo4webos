@@ -1,4 +1,4 @@
-/* Src/sysconfig.h for AmigaOS */
+/* Src/sysconfig.h */
 
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS 1

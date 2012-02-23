@@ -21,52 +21,9 @@
 #include "main.h"
 #include "C64.h"
 
-#ifdef __BEOS__
-#include <MediaKit.h>
-#endif
-
-#ifdef AMIGA
-#include <exec/types.h>
-#include <utility/hooks.h>
-#include <devices/ahi.h>
-#define USE_FIXPOINT_MATHS
-#define FIXPOINT_PREC 16	// number of fractional bits used in fixpoint representation
-#define PRECOMPUTE_RESONANCE
-#define ldSINTAB 9			// size of sinus table (0 to 90 degrees)
-#endif
-
-#ifdef SUN
-extern "C" {
-	#include <sys/audioio.h>
-}
-#endif
-
-#ifdef __hpux
-extern "C" {
-	#include <sys/audio.h>
-}
-#endif
-
-#ifdef __mac__
-#include <Sound.h>
-#define M_PI 3.14159265358979323846
-#endif
-
 #ifdef WIN32
 class DigitalPlayer;
 #endif
-
-#ifdef __riscos__
-#include "ROLib.h"
-# ifndef M_PI
-# define M_PI 3.14159265358979323846
-# endif
-#define USE_FIXPOINT_MATHS
-#define FIXPOINT_PREC 16	// number of fractional bits used in fixpoint representation
-#define PRECOMPUTE_RESONANCE
-#define ldSINTAB 9			// size of sinus table (0 to 90 degrees)
-#endif
-
 
 #ifdef USE_FIXPOINT_MATHS
 #include "FixPoint.h"
@@ -266,11 +223,7 @@ void MOS6581::SetState(MOS6581State *ss)
  **  Renderer for digital SID emulation (SIDTYPE_DIGITAL)
  **/
 
-#if defined(AMIGA) || defined(__riscos__)
-const uint32 SAMPLE_FREQ = 22050;	// Sample output frequency in Hz
-#else
 const uint32 SAMPLE_FREQ = 44100;	// Sample output frequency in Hz
-#endif
 const uint32 SID_FREQ = 985248;		// SID frequency in Hz
 const uint32 CALC_FREQ = 50;			// Frequency at which calc_buffer is called in Hz (should be 50Hz)
 const uint32 SID_CYCLES = SID_FREQ/SAMPLE_FREQ;	// # of SID clocks per sample frame
@@ -343,11 +296,7 @@ struct DRVoice {
 // Renderer class
 class DigitalRenderer : public SIDRenderer {
 public:
-#if defined(__BEOS__) || defined(__riscos__) || defined(HAVE_SDL)
 	DigitalRenderer(C64 *c64);
-#else
-	DigitalRenderer();
-#endif
 	virtual ~DigitalRenderer();
 
 	virtual void Reset(void);
@@ -360,11 +309,7 @@ public:
 private:
 	void init_sound(void);
 	void calc_filter(void);
-#ifdef __riscos__
-	void calc_buffer(uint8 *buf, long count);
-#else
 	void calc_buffer(int16 *buf, long count);
-#endif
 
 	bool ready;						// Flag: Renderer has initialized and is ready
 	uint8 volume;					// Master volume
@@ -406,91 +351,13 @@ private:
 	uint8 sample_buf[SAMPLE_BUF_SIZE]; // Buffer for sampled voice
 	int sample_in_ptr;				// Index in sample_buf for writing
 
-#ifdef __BEOS__
-	static bool stream_func(void *arg, char *buf, size_t count, void *header);
-	C64 *the_c64;					// Pointer to C64 object
-	BDACStream *the_stream;			// Pointer to stream
-	BSubscriber *the_sub;			// Pointer to subscriber
-	bool in_stream;					// Flag: Subscriber has entered stream
-#endif
-
-#ifdef AMIGA
-	static void sub_invoc(void);	// Sound sub-process
-	void sub_func(void);
-	struct Process *sound_process;
-	int quit_sig, pause_sig,
-		resume_sig, ahi_sig;		// Sub-process signals
-	struct Task *main_task;			// Main task
-	int main_sig;					// Main task signals
-	static ULONG sound_func(void);	// AHI callback
-	struct MsgPort *ahi_port;		// Port and IORequest for AHI
-	struct AHIRequest *ahi_io;
-	struct AHIAudioCtrl *ahi_ctrl;	// AHI control structure
-	struct AHISampleInfo sample[2];	// SampleInfos for double buffering
-	struct Hook sf_hook;			// Hook for callback function
-	int play_buf;					// Number of buffer currently playing
-#endif
-
-#ifdef __linux__
-	int devfd, sndbufsize, buffer_rate;
-	int16 *sound_buffer;
-#endif
-
-#ifdef SUN
-	int fd;
-	audio_info status;
-	uint_t sent_samples,delta_samples;
-	WORD *sound_calc_buf;
-#endif
-
-#ifdef __hpux
-	int fd;
-	audio_status status;
-	int16 * sound_calc_buf;
-	int linecnt;
-#endif
-
-#ifdef __mac__
-	SndChannelPtr chan1;
-	SndDoubleBufferHeader myDblHeader;
-	SndDoubleBufferPtr sampleBuffer1, sampleBuffer2;
-	SCStatus myStatus;
-	short sndbufsize;
-	OSErr err;
-
-	static void doubleBackProc(SndChannelPtr chan, SndDoubleBufferPtr doubleBuffer);
-#endif
-
-#if HAVE_SDL
 public:
 	void VBlank(void);
     void mixAudio(uint8* stream, int len);
 	C64 *the_c64;					// Pointer to C64 object
     SDL_AudioSpec format;
 
-#elif defined ( WIN32 )
-public:
-	void VBlank(void);
 
-private:
-	void StartPlayer(void);
-	void StopPlayer(void);
-
-	BOOL direct_sound;
-	DigitalPlayer *ThePlayer;
-	int16 *sound_buffer;
-	int to_output;
-	int sb_pos;
-	int divisor;
-	int *lead;
-	int lead_pos;
-#endif
-
-#ifdef __riscos__
-	int linecnt, sndbufsize;
-	uint8 *sound_buffer;
-	C64 *the_c64;
-#endif
 };
 
 // Static data members
@@ -820,11 +687,7 @@ const int16 DigitalRenderer::SampleTab[16] = {
  *  Constructor
  */
 
-#if defined(__BEOS__) || defined(__riscos__) || defined(HAVE_SDL)
 DigitalRenderer::DigitalRenderer(C64 *c64) : the_c64(c64)
-#else
-DigitalRenderer::DigitalRenderer()
-#endif
 {
 	// Link voices together
 	voice[0].mod_by = &voice[2];
@@ -1171,11 +1034,7 @@ void DigitalRenderer::calc_filter(void)
  *  Fill one audio buffer with calculated SID sound
  */
 
-#ifdef __riscos__
-void DigitalRenderer::calc_buffer(uint8 *buf, long count)
-#else
 void DigitalRenderer::calc_buffer(int16 *buf, long count)
-#endif
 {
 	// Get filter coefficients, so the emulator won't change
 	// them in the middle of our calculations
@@ -1187,22 +1046,10 @@ void DigitalRenderer::calc_buffer(int16 *buf, long count)
 	float cd1 = d1, cd2 = d2, cg1 = g1, cg2 = g2;
 #endif
 
-#ifdef __riscos__
-	uint8 *LinToLog, *LogScale;
-#endif
-
 	// Index in sample_buf for reading, 16.16 fixed
 	uint32 sample_count = (sample_in_ptr + SAMPLE_BUF_SIZE/2) << 16;
 
-#ifdef __riscos__	// on RISC OS we have 8 bit logarithmic sound
-	DigitalRenderer_GetTables(&LinToLog, &LogScale);	// get translation tables
-#else
-#ifdef __BEOS__
-	count >>= 2;	// 16 bit stereo output, count is in bytes
-#else
 	count >>= 1;	// 16 bit mono output, count is in bytes
-#endif
-#endif
 	while (count--) {
 		int32 sum_output;
 		int32 sum_output_filter = 0;
@@ -1331,25 +1178,7 @@ void DigitalRenderer::calc_buffer(int16 *buf, long count)
 		}
 
 		// Write to buffer
-#ifdef __BEOS__
-		int16 audio_data = (sum_output + sum_output_filter) >> 10;
-		int val = *buf + audio_data;
-		if (val > 32767)
-			val = 32767;
-		if (val < -32768)
-			val = -32768;
-		*buf++ = val;
-		val = *buf + audio_data;
-		if (val > 32767)
-			val = 32767;
-		if (val < -32768)
-			val = -32768;
-		*buf++ = val;
-#elif defined(__riscos__)	// lookup in 8k (13bit) translation table
-		*buf++ = LinToLog[((sum_output + sum_output_filter) >> 13) & 0x1fff];
-#else
 		*buf++ = (sum_output + sum_output_filter) >> 10;
-#endif
 	}
 }
 

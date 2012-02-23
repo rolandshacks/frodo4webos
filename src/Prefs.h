@@ -33,7 +33,7 @@ enum {
 };
 
 
-// Display types (BeOS)
+// Display types
 enum {
 	DISPTYPE_WINDOW,	// BWindow
 	DISPTYPE_SCREEN		// BWindowScreen
@@ -67,7 +67,7 @@ public:
 
 	int SIDType;			// SID emulation type
 	int REUSize;			// Size of REU
-	int DisplayType;		// Display type (BeOS)
+	int DisplayType;		// Display type
 	int LatencyMin;			// Min msecs ahead of sound buffer (Win32)
 	int LatencyMax;			// Max msecs ahead of sound buffer (Win32)
 	int LatencyAvg;			// Averaging interval in msecs (Win32)
@@ -85,7 +85,7 @@ public:
 	bool MapSlash;			// Map '/' in C64 filenames
 	bool Emul1541Proc;		// Enable processor-level 1541 emulation
 	bool SIDFilters;		// Emulate SID filters
-	bool DoubleScan;		// Double scan lines (BeOS, if DisplayType == DISPTYPE_SCREEN)
+	bool DoubleScan;		// Double scan lines (if DisplayType == DISPTYPE_SCREEN)
 	bool HideCursor;		// Hide mouse cursor when visible (Win32)
 	bool DirectSound;		// Use direct sound (instead of wav) (Win32)
 	bool ExclusiveSound;	// Use exclusive mode with direct sound (Win32)
@@ -95,10 +95,6 @@ public:
 	bool AlwaysCopy;		// Always use a work surface (Win32)
 	bool SystemKeys;		// Enable system keys and menu keys (Win32)
 	bool ShowLEDs;			// Show LEDs (Win32)
-
-#ifdef __mac__
-	void ChangeDisks(void);
-#endif
 
 };
 

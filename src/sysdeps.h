@@ -148,14 +148,6 @@ struct utimbuf
 #define O_BINARY 0
 #endif
 
-#ifdef __mac__
-#define bool Boolean
-#endif
-
-#ifdef __riscos
-#define bool int
-#endif
-
 #ifdef WIN32
 #include <windows.h>
 #include <direct.h>
@@ -173,7 +165,6 @@ struct utimbuf
 #endif
 
 /* If char has more then 8 bits, good night. */
-#ifndef __BEOS__
 typedef unsigned char uint8;
 typedef signed char int8;
 
@@ -196,7 +187,6 @@ typedef long int32;
 #else
 #error No 4 byte type, you lose.
 #endif
-#endif	// __BEOS__
 
 #define UNUSED(x) (x = x)
 }

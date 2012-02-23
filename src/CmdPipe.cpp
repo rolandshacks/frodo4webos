@@ -5,7 +5,7 @@
  *  Tcl/Tk stuff by Lutz Vieweg
  */
 
-#ifndef WIN32
+#if ENABLED_CMDPIPE
 #include "CmdPipe.h"
 
 
@@ -168,4 +168,4 @@ CmdPipe::~CmdPipe(void) {
 	}
 }
 
-#endif
+#endif /* ENABLED_CMDPIPE */

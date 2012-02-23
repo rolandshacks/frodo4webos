@@ -4,6 +4,7 @@
  *  Frodo (C) 1994-1997,2002 Christian Bauer
  *  Tcl/Tk stuff by Lutz Vieweg
  */
+#if ENABLED_CMDPIPE
 
 #ifndef CmdPipe_h
 #define CmdPipe_h
@@ -83,3 +84,5 @@ public:
 };
 
 #endif // CmdPipe_h
+
+#endif /* ENABLED_CMDPIPE */

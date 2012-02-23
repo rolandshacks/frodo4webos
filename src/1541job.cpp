@@ -249,12 +249,7 @@ bool Job1541::read_sector(int track, int sector, uint8 *buffer)
 	if ((offset = offset_from_ts(track, sector)) < 0)
 		return false;
 
-#ifdef AMIGA
-	if (offset != ftell(the_file))
-		fseek(the_file, offset + image_header, SEEK_SET);
-#else
 	fseek(the_file, offset + image_header, SEEK_SET);
-#endif
 	fread(buffer, 256, 1, the_file);
 	return true;
 }
@@ -273,12 +268,7 @@ bool Job1541::write_sector(int track, int sector, uint8 *buffer)
 	if ((offset = offset_from_ts(track, sector)) < 0)
 		return false;
 
-#ifdef AMIGA
-	if (offset != ftell(the_file))
-		fseek(the_file, offset + image_header, SEEK_SET);
-#else
 	fseek(the_file, offset + image_header, SEEK_SET);
-#endif
 	fwrite(buffer, 256, 1, the_file);
 	return true;
 }
@@ -409,9 +399,7 @@ void Job1541::MoveHeadOut(void)
 	if (current_halftrack == 2)
 		return;
 	current_halftrack--;
-#ifndef __riscos__
 	printf("Head move %d\n", current_halftrack);
-#endif
 	gcr_ptr = gcr_track_start = gcr_data + ((current_halftrack >> 1) - 1) * GCR_TRACK_SIZE;
 	gcr_track_end = gcr_track_start + num_sectors[current_halftrack >> 1] * GCR_SECTOR_SIZE;
 }
@@ -426,9 +414,7 @@ void Job1541::MoveHeadIn(void)
 	if (current_halftrack == NUM_TRACKS*2)
 		return;
 	current_halftrack++;
-#ifndef __riscos__
 	printf("Head move %d\n", current_halftrack);
-#endif
 	gcr_ptr = gcr_track_start = gcr_data + ((current_halftrack >> 1) - 1) * GCR_TRACK_SIZE;
 	gcr_track_end = gcr_track_start + num_sectors[current_halftrack >> 1] * GCR_SECTOR_SIZE;
 }

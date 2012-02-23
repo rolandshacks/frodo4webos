@@ -179,21 +179,8 @@ void C64::NewPrefs(Prefs *prefs)
 
 	TheDisplay->NewPrefs(prefs);
 
-#ifdef __riscos__
-	// Changed order of calls. If 1541 mode hasn't changed the order is insignificant.
-	if (prefs->Emul1541Proc) {
-		// New prefs have 1541 enabled ==> if old prefs had disabled free drives FIRST
-		TheIEC->NewPrefs(prefs);
-		TheJob1541->NewPrefs(prefs);
-	} else {
-		// New prefs has 1541 disabled ==> if old prefs had enabled free job FIRST
-		TheJob1541->NewPrefs(prefs);
-		TheIEC->NewPrefs(prefs);
-	}
-#else
 	TheIEC->NewPrefs(prefs);
 	TheJob1541->NewPrefs(prefs);
-#endif
 
 	TheREU->NewPrefs(prefs);
 	TheSID->NewPrefs(prefs);
@@ -578,9 +565,6 @@ void C64::SaveSnapshot(char *filename)
 	}
 	fclose(f);
 
-#ifdef __riscos__
-	TheWIMP->SnapshotSaved(true);
-#endif
 }
 
 
@@ -661,18 +645,12 @@ bool C64::LoadSnapshot(char *filename)
 				}
 #endif
 				Load1541JobState(f);
-#ifdef __riscos__
-				TheWIMP->ThePrefsToWindow();
-#endif
 			} else if (ThePrefs.Emul1541Proc) {	// No emulation in snapshot, but currently active?
 				Prefs *prefs = new Prefs(ThePrefs);
 				prefs->Emul1541Proc = false;
 				NewPrefs(prefs);
 				ThePrefs = *prefs;
 				delete prefs;
-#ifdef __riscos__
-				TheWIMP->ThePrefsToWindow();
-#endif
 			}
 
 #ifndef FRODO_SC

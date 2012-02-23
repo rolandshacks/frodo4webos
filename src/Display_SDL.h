@@ -11,12 +11,13 @@
 #include "osd.h"
 #include "virtual_joystick.h"
 
-#define USEGL 1
+//#define USEGL 1
 
 int initialWidth = 1024;
 int initialHeight = 768;
 //int initialWidth = 350;
 //int initialHeight = 250;
+int bitsPerPixel = 8;
 int zoom_factor = 1;
 
 // JOYSTICK EMULATION: 0=no emulation, 1=keyboard, 2=mouse
@@ -102,15 +103,15 @@ int init_graphics(void)
 	// Open window
     
     #ifdef WEBOS
-	    physicalScreen = SDL_SetVideoMode(0, 0, 8, 0);
+	    physicalScreen = SDL_SetVideoMode(0, 0, bitsPerPixel, 0);
     #else
         SDL_WM_SetCaption(VERSION_STRING, "Frodo");
 
         if (enableScaling)
-    		physicalScreen = SDL_SetVideoMode(initialWidth, initialHeight, 8, SDL_DOUBLEBUF|SDL_RESIZABLE);
+    		physicalScreen = SDL_SetVideoMode(initialWidth, initialHeight, bitsPerPixel, SDL_DOUBLEBUF|SDL_RESIZABLE);
         else
-            physicalScreen = SDL_SetVideoMode(DISPLAY_X, DISPLAY_Y, 8, SDL_DOUBLEBUF);
-	        //physicalScreen = SDL_SetVideoMode(DISPLAY_X, DISPLAY_Y + 17, 8, SDL_DOUBLEBUF);
+            physicalScreen = SDL_SetVideoMode(DISPLAY_X, DISPLAY_Y, bitsPerPixel, SDL_DOUBLEBUF);
+	        //physicalScreen = SDL_SetVideoMode(DISPLAY_X, DISPLAY_Y + 17, bitsPerPixel, SDL_DOUBLEBUF);
 	#endif
 
     if (NULL == physicalScreen) {
@@ -132,7 +133,7 @@ int init_graphics(void)
 
     if (enableScaling)
     {
-        SDL_Surface* surface = SDL_CreateRGBSurface(SDL_SWSURFACE, DISPLAY_X, DISPLAY_Y, 8, rmask, gmask, bmask, amask);
+        SDL_Surface* surface = SDL_CreateRGBSurface(SDL_SWSURFACE, DISPLAY_X, DISPLAY_Y, bitsPerPixel, rmask, gmask, bmask, amask);
         screen = SDL_DisplayFormat(surface);
         SDL_FreeSurface(surface);
 
@@ -259,7 +260,9 @@ void C64Display::Update(void)
 	int barW = screenWidth;
 	int barY = out->h-barH;
 
-	zoom_factor = out->w / 340;
+    zoom_factor = 1;
+	// zoom_factor = out->w / 340;
+
 	if (zoom_factor < 1) zoom_factor = 1;
 	else if (zoom_factor > 4) zoom_factor = 4;
 
@@ -1299,39 +1302,3 @@ long int ShowRequester(char *a,char *b,char *)
 	printf("%s: %s\n", a, b);
 	return 1;
 }
-
-#ifdef WIN32
-C64Display::DisplayMode default_modes[] = {
-	{ 320, 200, 8 },
-	{ 320, 240, 8 },
-	{ 512, 384, 8 },
-	{ 640, 400, 8 },
-	{ 640, 480, 8 },
-	{ 320, 200, 16 },
-	{ 320, 240, 16 },
-	{ 512, 384, 16 },
-	{ 640, 400, 16 },
-	{ 640, 480, 16 },
-};
-static int num_default_modes =
-	sizeof(default_modes)/sizeof(C64Display::DisplayMode);
-
-static C64Display::DisplayMode *display_modes = NULL;
-static int num_display_modes = 0;
-static int max_display_modes = 16;
-
-int C64Display::GetNumDisplayModes() const
-{
-	if (num_display_modes == 0)
-		return num_default_modes;
-	return num_display_modes;
-}
-
-const C64Display::DisplayMode *C64Display::GetDisplayModes() const
-{
-	if (num_display_modes == 0)
-		return default_modes;
-	return display_modes;
-}
-
-#endif
