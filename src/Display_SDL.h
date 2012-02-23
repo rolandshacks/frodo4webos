@@ -922,12 +922,22 @@ void C64Display::updateMouse(uint8 *joystick)
 	int mouseX = 0;
 	int mouseY = 0;
 	int mouseButtons = SDL_GetMouseState(&mouseX, &mouseY);
+    if (mouseY <= toolbarHeight || mouseY >= physicalScreen->h - toolbarHeight)
+    {
+        // toolbar area
+        return;
+    }
 
     int mouseX2 = 0;
     int mouseY2 = 0;
 
     #ifdef WEBOS
         int mouseButtons2 = SDL_GetMultiMouseState(1, &mouseX2, &mouseY2);
+        if (mouseY2 <= toolbarHeight || mouseY2 >= physicalScreen->h - toolbarHeight)
+        {
+            // toolbar area
+            return;
+        }
     #else
         int mouseButtons2 = 0;
     #endif
@@ -1045,6 +1055,7 @@ void toggleVirtualKeyboard()
 void C64Display::PollKeyboard(uint8 *key_matrix, uint8 *rev_matrix, uint8 *joystick)
 {
     bool osdAction = false;
+    bool toolbarAction = false;
 
 	SDL_Event event;
 	while (SDL_PollEvent(&event)) {
@@ -1085,6 +1096,8 @@ void C64Display::PollKeyboard(uint8 *key_matrix, uint8 *rev_matrix, uint8 *joyst
                 }
                 else if (e->y < toolbarHeight)
                 {
+                    toolbarAction = true;
+                    
                     if (e->x < toolbarWidgetWidth)
                     {
                         pushKeyPress(27); // ESC = RUN/STOP
@@ -1103,6 +1116,8 @@ void C64Display::PollKeyboard(uint8 *key_matrix, uint8 *rev_matrix, uint8 *joyst
                 }
                 else if (e->y > physicalScreen->h - toolbarHeight)
                 {
+                    toolbarAction = true;
+                    
                     if (e->x < toolbarWidgetWidth)
                     {
                         enabledStatusBar = !enabledStatusBar;
@@ -1236,7 +1251,7 @@ void C64Display::PollKeyboard(uint8 *key_matrix, uint8 *rev_matrix, uint8 *joyst
             }
         }
 
-	    if (2 == emulateJoystick) {
+	    if (false == toolbarAction && 2 == emulateJoystick) {
 		    updateMouse(joystick);
 		    if (*joystick != 0xff) return;
 	    }
