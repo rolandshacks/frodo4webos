@@ -138,8 +138,6 @@ void C64Input::translateKey(SDLKey key,
 {
 	int c64_key = -1;
 
-    printf("KEY: %d\n", key);
-
 	switch (key) 
     {
 		case SDLK_a: c64_key = MATRIX(1,2); break;
