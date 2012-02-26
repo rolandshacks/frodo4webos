@@ -39,7 +39,7 @@ public:
 #endif
 	void ChangedVA(uint16 new_va);	// CIA VA14/15 has changed
 	void TriggerLightpen(void);		// Trigger lightpen interrupt
-	void ReInitColors(void);
+	//void ReInitColors(void);
 	void GetState(MOS6569State *vd);
 	void SetState(MOS6569State *vd);
 
@@ -48,7 +48,6 @@ public:
 #endif
 
 private:
-#ifndef GLOBAL_VARS
 	void vblank(void);
 	void raster_irq(void);
 
@@ -178,7 +177,6 @@ private:
 	uint8 *matrix_base;			// Video matrix base
 	uint8 *char_base;			// Character generator base
 	uint8 *bitmap_base;			// Bitmap base
-#endif
 #endif
 };
 

@@ -161,20 +161,25 @@ struct MOS6510State {
 inline void MOS6510::TriggerVICIRQ(void)
 {
 	if (!(interrupt.intr[INT_VICIRQ] || interrupt.intr[INT_CIAIRQ]))
+    {
 		first_irq_cycle = the_c64->CycleCounter;
+    }
 	interrupt.intr[INT_VICIRQ] = true;
 }
 
 inline void MOS6510::TriggerCIAIRQ(void)
 {
 	if (!(interrupt.intr[INT_VICIRQ] || interrupt.intr[INT_CIAIRQ]))
+    {
 		first_irq_cycle = the_c64->CycleCounter;
+    }
 	interrupt.intr[INT_CIAIRQ] = true;
 }
 
 inline void MOS6510::TriggerNMI(void)
 {
-	if (!nmi_state) {
+	if (!nmi_state) 
+    {
 		nmi_state = true;
 		interrupt.intr[INT_NMI] = true;
 		first_nmi_cycle = the_c64->CycleCounter;

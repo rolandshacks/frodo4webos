@@ -29,6 +29,7 @@
 
 #include "sysdeps.h"
 
+#include "main.h"
 #include "IEC.h"
 #include "1541fs.h"
 #include "1541d64.h"

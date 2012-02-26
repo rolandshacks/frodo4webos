@@ -21,9 +21,7 @@
 #include "main.h"
 #include "C64.h"
 
-#ifdef WIN32
 class DigitalPlayer;
-#endif
 
 #ifdef USE_FIXPOINT_MATHS
 #include "FixPoint.h"
@@ -50,14 +48,12 @@ class DigitalPlayer;
  *  Random number generator for noise waveform
  */
 
-static uint8 sid_random(void);
 static uint8 sid_random(void)
 {
 	static uint32 seed = 1;
 	seed = seed * 1103515245 + 12345;
 	return seed >> 16;
 }
-
 
 /*
  *  Constructor
@@ -1182,8 +1178,6 @@ void DigitalRenderer::calc_buffer(int16 *buf, long count)
 	}
 }
 
-#include "SID_SDL.h"
-
 /*
  *  Open/close the renderer, according to old and new prefs
  */
@@ -1209,4 +1203,76 @@ void MOS6581::open_close_renderer(int old_type, int new_type)
 	if (the_renderer != NULL)
 		for (int i=0; i<25; i++)
 			the_renderer->WriteRegister(i, regs[i]);
+}
+
+
+DigitalRenderer::~DigitalRenderer()
+{
+    if (ready) {
+        ready = false;
+        SDL_CloseAudio();
+    }
+}
+
+void audioCallback(void* userdata, uint8* stream, int len)
+{
+    ((DigitalRenderer *) userdata)->mixAudio(stream, len);
+}
+
+void DigitalRenderer::mixAudio(uint8* stream, int len)
+{
+    calc_buffer((int16 *) stream, len);
+
+    the_c64->soundSync();
+}
+
+void DigitalRenderer::init_sound()
+{
+    ready = false;
+
+    format.freq = SAMPLE_FREQ;
+    format.format = AUDIO_S16;
+    format.channels = 2;
+
+    int numSamples = SAMPLE_FREQ / CALC_FREQ;
+
+    format.samples = numSamples;
+    format.callback = ::audioCallback;
+    format.userdata = this;
+
+    if ( SDL_OpenAudio(&format, NULL) < 0 ) {
+        fprintf(stderr, "Unable to open sound device: %s\n", SDL_GetError());
+    }
+
+    SDL_PauseAudio(0);
+
+    ready = true;
+}
+
+void DigitalRenderer::EmulateLine()
+{
+	if (!ready)
+		return;
+
+	sample_buf[sample_in_ptr] = volume;
+	sample_in_ptr = (sample_in_ptr + 1) % SAMPLE_BUF_SIZE;
+
+}
+
+void DigitalRenderer::VBlank()
+{
+	if (!ready)
+		return;
+}
+
+void DigitalRenderer::Pause()
+{
+	if (!ready)
+		return;
+}
+
+void DigitalRenderer::Resume()
+{
+	if (!ready)
+		return;
 }

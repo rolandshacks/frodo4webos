@@ -10,6 +10,7 @@
 extern "C"
 {
 #include <SDL.h>
+#include <SDL_thread.h>
 #include <SDL_audio.h>
 #include <time.h>
 

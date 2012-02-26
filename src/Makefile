@@ -35,6 +35,3 @@ endif
 ###############################################################################
 #include ../../vengine/generic.mak
 include ./generic.mak
-
-Display.opp: Display_SDL.h
-SID.opp: SID_SDL.h

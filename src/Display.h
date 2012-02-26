@@ -27,47 +27,80 @@ class OSD;
 class VirtualJoystick;
 
 // Class for C64 graphics display
-class C64Display {
-public:
-	C64Display(C64 *the_c64);
-	~C64Display();
+class C64Display
+{
+    public:
+	    C64 *TheC64;
+	    volatile bool quit_requested;
+        volatile bool backgroundInvalid;
+        volatile bool invalidated;
 
-	void Update(void);
-	void UpdateLEDs(int l0, int l1, int l2, int l3);
-	void Speedometer(int speed);
-	uint8 *BitmapBase(void);
-	int BitmapXMod(void);
-	void PollKeyboard(uint8 *key_matrix, uint8 *rev_matrix, uint8 *joystick);
-	bool NumLock(void);
-	void InitColors(uint8 *colors);
-	void NewPrefs(Prefs *prefs);
+    private:
 
-	C64 *TheC64;
+        // use tripple buffering to make
+        // input and display fully independent
+        uint8* back_buffer;
+        uint8* mid_buffer;
+        uint8* front_buffer;
+        SDL_mutex* bufferLock;
 
-//#ifdef __unix
-	bool quit_requested;
-//#endif
+        int bufferSize;
+        int bufferWidth;
+        int bufferHeight;
+        int bufferBitsPerPixel;
+        int bufferPitch;
 
-private:
-	int led_state[4];
-	int old_led_state[4];
+    private:
+	    int led_state[4];
+	    int old_led_state[4];
+        OSD* osd;
+	    char speedometer_string[16];		// Speedometer text
+        int framesPerSecond;
+        int frameCounter;
 
-    OSD* osd;
-    VirtualJoystick* virtual_joystick;
-	char speedometer_string[16];		// Speedometer text
-    void updateMouse(uint8 *joystick);
+    public:
+	    C64Display(C64 *the_c64);
+	    ~C64Display();
 
-public:
-    void showAbout(bool show);
-	void draw_string(SDL_Surface *s, int x, int y, const char *str, uint8 front_color, uint8 back_color);
-    void draw_window(SDL_Surface *s, int x, int y, int w, int h, const char *str, uint8 text_color, uint8 front_color, uint8 back_color);
+        void invalidateBackground();
+        void resize(int w, int h);
 
-    void update_led_blinking();         // Update LED
+    public:
+        bool init();
+	    void Update(void);
+
+        void redraw();
+
+	    void UpdateLEDs(int l0, int l1, int l2, int l3);
+	    void Speedometer(int speed);
+	    uint8 *BitmapBase(void);
+	    int BitmapXMod(void);
+	    void InitColors(uint8 *colors);
+	    void NewPrefs(Prefs *prefs);
+
+    public:
+        int getWidth();
+        int getHeight();
+
+    public:
+        void openOsd();
+        void closeOsd();
+        bool isOsdActive();
+        void updateOsd(SDL_Event* event);
+        OSD* getOsd();
+
+        void toggleStatusBar();
+        void openAbout();
+        void closeAbout();
+
+    public:
+        void showAbout(bool show);
+	    void draw_string(SDL_Surface *s, int x, int y, const char *str, uint8 front_color, uint8 back_color);
+        void draw_window(SDL_Surface *s, int x, int y, int w, int h, const char *str, uint8 text_color, uint8 front_color, uint8 back_color);
+        void update_led_blinking();         // Update LED
+
+    private:
+        void doRedraw();
 };
-
-
-// Exported functions
-extern long ShowRequester(char *str, char *button1, char *button2 = NULL);
-
 
 #endif

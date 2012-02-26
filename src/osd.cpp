@@ -6,12 +6,14 @@
 
 #include "sysdeps.h"
 
+#include "main.h"
 #include "C64.h"
 #include "Display.h"
 #include "main.h"
 #include "Prefs.h"
 #include "ndir.h"
 #include "osd.h"
+#include "Input.h"
 
 #include <algorithm>
 
@@ -45,10 +47,10 @@ void OSD::init()
     oscFontHeight = 8;
     #ifdef WEBOS
     oscMaxLen = 24;
-    oscRowHeight = 40;
+    oscRowHeight = 35;
     #else
     oscMaxLen = 16;
-    oscRowHeight = 40;
+    oscRowHeight = 35;
     #endif
     oscColumnWidth = oscMaxLen*oscFontWidth + 12;
 
@@ -57,6 +59,7 @@ void OSD::init()
     commandList.push_back( command_t ( CMD_ENABLE_JOYSTICK1, "JOY1" ) );
     commandList.push_back( command_t ( CMD_ENABLE_JOYSTICK2, "JOY2" ) );
     commandList.push_back( command_t ( CMD_ENABLE_TRUEDRIVE, "DRV" ) );
+    commandList.push_back( command_t ( CMD_WARP, "WARP" ) );
     commandList.push_back( command_t ( CMD_RESET, "RESET" ) );
 
     commandList.push_back( command_t ( CMD_KEY_F1, "F1" ) );
@@ -138,7 +141,7 @@ void OSD::layout(int w, int h)
     fileListFrame.h = windowRect.h-oscTitleHeight;
 }
 
-void OSD::draw(SDL_Surface* surface, Uint32 fg, Uint32 bg, Uint32 border)
+void OSD::draw(SDL_Surface* surface, Uint32 fg, Uint32 bg, Uint32 bg2, Uint32 border)
 {
     if (!visible) return;
 
@@ -203,20 +206,25 @@ void OSD::draw(SDL_Surface* surface, Uint32 fg, Uint32 bg, Uint32 border)
 
     buttonRect.h = buttonHeight;
 
-    for (vector<command_t>::const_iterator it = commandList.begin();
+    for (vector<command_t>::iterator it = commandList.begin();
          it != commandList.end();
          ++it)
     {
-        const command_t& cmd = *it;
+        command_t& cmd = *it;
+
+        updateCommandState(cmd);
 
         if (buttonRect.y + buttonRect.h >= toolbarRect.y + toolbarRect.h)
             break;
 
-        SDL_FillRect(surface, &buttonRect, border);
+        int buttonColor = (cmd.state == STATE_SET) ? bg2 : border;
+
+        SDL_FillRect(surface, &buttonRect, buttonColor);
+
         display->draw_string(surface,
                              buttonRect.x + (buttonRect.w - cmd.text.size()*oscFontWidth)/2 ,
                              buttonRect.y + (buttonRect.h-oscFontHeight)/2,
-                             cmd.text.c_str(), fg, border);
+                             cmd.text.c_str(), fg, buttonColor);
 
         buttonRect.y += buttonRect.h + 1;
     }
@@ -275,6 +283,22 @@ string OSD::getCachedDiskFilename(int idx)
     if (it == fileList.end()) return "";
 
     return *it;
+}
+
+void OSD::handleMouseEvent(int x, int y, bool press)
+{
+    if (!press) // mouse up
+    {
+        onClick(x, y);
+    }
+}
+
+void OSD::handleKeyEvent(int key, int sym, bool press)
+{
+    if (key == SDLK_ESCAPE)
+    {
+        visible = false;
+    }
 }
 
 bool OSD::onClick(int x, int y)
@@ -359,11 +383,13 @@ bool OSD::onClick(int x, int y)
             }
         }
     }
+    else
+    {
+        visible = false;
+    }
 
     return true;
 }
-
-void pushKeyPress(int key);
 
 void OSD::onCommand(const OSD::command_t& command)
 {
@@ -386,6 +412,10 @@ void OSD::onCommand(const OSD::command_t& command)
             break;
         case CMD_ENABLE_TRUEDRIVE:
             prefs->Emul1541Proc = !prefs->Emul1541Proc;
+            prefsChanged = true;
+            break;
+        case CMD_WARP:
+            prefs->LimitSpeed = !prefs->LimitSpeed;
             prefsChanged = true;
             break;
         case CMD_RESET:
@@ -472,4 +502,31 @@ void OSD::setNewFile(const string& filename)
 	delete prefs;
 
     //the_c64->Reset();
+}
+
+void OSD::updateCommandState(command_t& command)
+{
+    int id = command.id;
+    switch (id)
+    {
+        case CMD_ENABLE_JOYSTICK1:
+            command.state = ThePrefs.JoystickSwap ? STATE_SET : STATE_NORMAL;
+            break;
+        case CMD_ENABLE_JOYSTICK2:
+            command.state = ThePrefs.JoystickSwap ? STATE_NORMAL : STATE_SET;
+            break;
+        case CMD_ENABLE_TRUEDRIVE:
+            command.state = ThePrefs.Emul1541Proc ? STATE_SET : STATE_NORMAL;
+            break;
+        case CMD_WARP:
+            command.state = ThePrefs.LimitSpeed ? STATE_NORMAL : STATE_SET;
+            break;
+        default:
+            break;
+    }
+}
+
+void OSD::pushKeyPress(int key)
+{
+    the_c64->TheInput->pushKeyPress(key);
 }

@@ -6,6 +6,7 @@
 
 #include "sysdeps.h"
 
+#include "main.h"
 #include "Prefs.h"
 #include "Display.h"
 #include "C64.h"
@@ -37,13 +38,11 @@ Prefs::Prefs()
 	ScalingDenominator = 2;
 
 	for (int i=0; i<4; i++)
+    {
         DriveType[i] = DRVTYPE_D64;
+    }
 
-    #ifdef WEBOS
-	strcpy(DrivePath[0], "/media/internal/c64/cauldron1.d64");
-    #else
-	strcpy(DrivePath[0], "cauldron1.d64");
-    #endif
+	strcpy(DrivePath[0], "");
 	strcpy(DrivePath[1], "");
 	strcpy(DrivePath[2], "");
 	strcpy(DrivePath[3], "");
@@ -396,5 +395,3 @@ bool Prefs::Save(char *filename)
 	}
 	return false;
 }
-
-#include "Prefs_SDL.h"

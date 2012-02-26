@@ -12,19 +12,34 @@ class C64;
 // Global variables
 extern char AppDirPath[1024];	// Path of application directory
 
-class Frodo {
-public:
-	Frodo();
-	~Frodo();
-	void ArgvReceived(int argc, char **argv);
-	void ReadyToRun();
-	void RunPrefsEditor();
+class Frodo 
+{
+    public:
+	    C64 *TheC64;
+	    char prefs_path[256];	// Pathname of current preferences file
+        volatile bool running;
 
-	C64 *TheC64;
-	char prefs_path[256];	// Pathname of current preferences file
+    public:
+	    Frodo();
+	    ~Frodo();
 
-private:
-	bool load_rom_files();
+    public:
+	    bool initialize(int argc, char **argv);
+        void run();
+        void shutdown();
+        void emulationLoop();
+
+    private:
+	    bool loadRomFiles();
+        void handleEvent(SDL_Event* event);
+        void doStep();
+};
+
+class InputHandler
+{
+    public:
+        virtual void handleMouseEvent(int x, int y, bool press) = 0;
+        virtual void handleKeyEvent(int key, int sym, bool press) = 0;
 };
 
 // Global variables

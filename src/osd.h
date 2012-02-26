@@ -10,7 +10,7 @@
 #include <vector>
 #include <string>
 
-class OSD
+class OSD : public InputHandler
 {
     private:
         C64* the_c64;
@@ -40,6 +40,7 @@ class OSD
             CMD_ENABLE_JOYSTICK2,
             CMD_ENABLE_TRUEDRIVE,
             CMD_RESET,
+            CMD_WARP,
             CMD_KEY_F1,
             CMD_KEY_F2,
             CMD_KEY_F3,
@@ -51,15 +52,23 @@ class OSD
             CMD_SHOW_ABOUT
         } commandid_t;
 
+        typedef enum
+        {
+            STATE_NORMAL,
+            STATE_SET
+        } commandstate_t;
+
         typedef struct command_type
         {
             int id;
             std::string text;
+            int state;
 
             command_type(int id, const std::string& text)
             {
                 this->id = id;
                 this->text = text;
+                this->state = STATE_NORMAL;
             }
 
         } command_t;
@@ -73,10 +82,14 @@ class OSD
         void create(C64 *the_c64, C64Display* display);
         void show(bool doShow);
         bool isShown();
-        void draw(SDL_Surface* surface, Uint32 fg, Uint32 bg, Uint32 border);
-        bool onClick(int x, int y);
+        void draw(SDL_Surface* surface, Uint32 fg, Uint32 bg, Uint32 bg2, Uint32 border);
+
+    public: // implements InputHandler
+        void handleMouseEvent(int x, int y, bool press);
+        void handleKeyEvent(int key, int sym, bool press);
 
     private:
+        bool onClick(int x, int y);
         void init();
         void cleanup();
         void layout(int w, int h);
@@ -84,7 +97,8 @@ class OSD
         void update();
         void setNewFile(const std::string& filename);
         void onCommand(const command_t& command);
-
+        void updateCommandState(command_t& command);
+        void pushKeyPress(int key);
 };
 
 #endif /* _OSD_H */

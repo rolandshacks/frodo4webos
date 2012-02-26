@@ -4,6 +4,7 @@
  *  Frodo (C) 1994-1997,2002 Christian Bauer
  */
 #include "sysdeps.h"
+#include "main.h"
 #include "C64.h"
 #include "CPUC64.h"
 #include "CPU1541.h"
@@ -14,8 +15,15 @@
 #include "IEC.h"
 #include "1541job.h"
 #include "Display.h"
+#include "Input.h"
 #include "Prefs.h"
-#include "main.h"
+#include "virtual_joystick.h"
+
+// ROM file names
+#define BASIC_ROM_FILE	"resources/Basic.ROM"
+#define KERNAL_ROM_FILE	"resources/Kernal.ROM"
+#define CHAR_ROM_FILE	"resources/Char.ROM"
+#define FLOPPY_ROM_FILE	"resources/1541.ROM"
 
 
 #ifdef FRODO_SC
@@ -23,7 +31,6 @@ bool IsFrodoSC = true;
 #else
 bool IsFrodoSC = false;
 #endif
-
 
 #define FRAME_INTERVAL		(1000/SCREEN_FREQ)	// in milliseconds
 #ifdef FRODO_SC
@@ -43,19 +50,47 @@ bool IsFrodoSC = false;
 
 C64::C64()
 {
+}
+
+
+/*
+ *  Destructor: Delete all objects
+ */
+
+C64::~C64()
+{
+    shutdown();
+}
+
+
+/*
+ * Init emulation
+ */
+bool C64::init()
+{
 	int i,j;
 	uint8 *p;
 
 	// The thread is not yet running
-	thread_running = false;
 	quit_thyself = false;
 	have_a_break = false;
 
-	// System-dependent things
-	c64_ctor1();
+	// Initialize joystick variables.
+	joy_state = 0xff;
+
+	// No need to check for state change.
+	state_change = false;
 
 	// Open display
 	TheDisplay = new C64Display(this);
+    if (false == TheDisplay->init())
+    {
+        delete TheDisplay;
+        TheDisplay = NULL;
+        return false;
+    }
+
+    TheInput = new C64Input(this, TheDisplay);
 
 	// Allocate RAM/ROM memory
 	RAM = new uint8[0x10000];
@@ -68,10 +103,8 @@ C64::C64()
 
 	// Create the chips
 	TheCPU = new MOS6510(this, RAM, Basic, Kernal, Char, Color);
-
 	TheJob1541 = new Job1541(RAM1541);
 	TheCPU1541 = new MOS6502_1541(this, TheJob1541, TheDisplay, RAM1541, ROM1541);
-
 	TheVIC = TheCPU->TheVIC = new MOS6569(this, TheDisplay, TheCPU, RAM, Char, Color);
 	TheSID = TheCPU->TheSID = new MOS6581(this);
 	TheCIA1 = TheCPU->TheCIA1 = new MOS6526_1(TheCPU, TheVIC);
@@ -89,35 +122,65 @@ C64::C64()
 
 	// Initialize color RAM with random values
 	for (i=0, p=Color; i<1024; i++)
+    {
 		*p++ = rand() & 0x0f;
+    }
 
 	// Clear 1541 RAM
 	memset(RAM1541, 0, 0x800);
 
-
     joystick1 = joystick2 = NULL;
 
-	// Open joystick drivers if required
-	open_close_joysticks(false, false, ThePrefs.Joystick1On, ThePrefs.Joystick2On);
-	joykey = 0xff;
+    TheJoystick = new VirtualJoystick();
+    #ifdef WEBOS
+        TheJoystick->setMode(VirtualJoystick::MODE_MOUSE);
+    #else
+        TheJoystick->setMode(VirtualJoystick::MODE_DISABLED);
+    #endif
 
-#ifdef FRODO_SC
-	CycleCounter = 0;
-#endif
+    #ifdef FRODO_SC
+	    CycleCounter = 0;
+    #endif
 
 	// System-dependent things
-	c64_ctor2();
+
+    if (!loadRomFiles())
+    {
+        return false;
+    }
+
+	// Reset chips
+	TheCPU->Reset();
+	TheSID->Reset();
+	TheCIA1->Reset();
+	TheCIA2->Reset();
+	TheCPU1541->Reset();
+
+	// Patch kernal IEC routines
+	orig_kernal_1d84 = Kernal[0x1d84];
+	orig_kernal_1d85 = Kernal[0x1d85];
+	PatchKernal(ThePrefs.FastReset, ThePrefs.Emul1541Proc);
+
+    ThePrefs.SkipFrames = 2;
+
+    ticksPerFrame = 1000/SCREEN_FREQ;
+
+    sync(true);
+
+    return true;
 }
 
-
 /*
- *  Destructor: Delete all objects
+ *  Run emulation
  */
 
-C64::~C64()
+void C64::doStep()
 {
-	open_close_joysticks(ThePrefs.Joystick1On, ThePrefs.Joystick2On, false, false);
+	emulationStep();
+}
 
+void C64::shutdown()
+{
 	delete TheJob1541;
 	delete TheREU;
 	delete TheIEC;
@@ -127,7 +190,9 @@ C64::~C64()
 	delete TheVIC;
 	delete TheCPU1541;
 	delete TheCPU;
+    delete TheInput;
 	delete TheDisplay;
+    delete TheJoystick;
 
 	delete[] RAM;
 	delete[] Basic;
@@ -136,10 +201,7 @@ C64::~C64()
 	delete[] Color;
 	delete[] RAM1541;
 	delete[] ROM1541;
-
-	c64_dtor();
 }
-
 
 /*
  *  Reset C64
@@ -174,7 +236,6 @@ void C64::NMI(void)
 
 void C64::NewPrefs(Prefs *prefs)
 {
-	open_close_joysticks(ThePrefs.Joystick1On, ThePrefs.Joystick2On, prefs->Joystick1On, prefs->Joystick2On);
 	PatchKernal(prefs->FastReset, prefs->Emul1541Proc);
 
 	TheDisplay->NewPrefs(prefs);
@@ -187,7 +248,9 @@ void C64::NewPrefs(Prefs *prefs)
 
 	// Reset 1541 processor if turned on
 	if (!ThePrefs.Emul1541Proc && prefs->Emul1541Proc)
+    {
 		TheCPU1541->AsyncReset();
+    }
 }
 
 
@@ -267,8 +330,11 @@ void C64::SaveRAM(char *filename)
 	FILE *f;
 
 	if ((f = fopen(filename, "wb")) == NULL)
+    {
 		ShowRequester("RAM save failed.", "OK", NULL);
-	else {
+    }
+	else 
+    {
 		fwrite((void*)RAM, 1, 0x10000, f);
 		fwrite((void*)Color, 1, 0x400, f);
 		if (ThePrefs.Emul1541Proc)
@@ -314,7 +380,8 @@ bool C64::LoadCPUState(FILE *f)
 	i += fread(Color, 0x400, 1, f);
 	i += fread((void*)&state, sizeof(state), 1, f);
 
-	if (i == 3) {
+	if (i == 3) 
+    {
 		TheCPU->SetState(&state);
 		return true;
 	} else
@@ -532,35 +599,36 @@ void C64::SaveSnapshot(char *filename)
 	SaveSIDState(f);
 	SaveCIAState(f);
 
-#ifdef FRODO_SC
-	delay = 0;
-	do {
-		if ((stat = SaveCPUState(f)) == -1) {	// -1 -> Instruction not finished yet
-			ADVANCE_CYCLES;	// Advance everything by one cycle
-			delay++;
-		}
-	} while (stat == -1);
-	fputc(delay, f);	// Number of cycles the saved CPUC64 lags behind the previous chips
-#else
-	SaveCPUState(f);
-	fputc(0, f);		// No delay
-#endif
+    #ifdef FRODO_SC
+	    delay = 0;
+	    do {
+		    if ((stat = SaveCPUState(f)) == -1) {	// -1 -> Instruction not finished yet
+			    ADVANCE_CYCLES;	// Advance everything by one cycle
+			    delay++;
+		    }
+	    } while (stat == -1);
+	    fputc(delay, f);	// Number of cycles the saved CPUC64 lags behind the previous chips
+    #else
+	    SaveCPUState(f);
+	    fputc(0, f);		// No delay
+    #endif
 
-	if (ThePrefs.Emul1541Proc) {
+	if (ThePrefs.Emul1541Proc) 
+    {
 		fwrite(ThePrefs.DrivePath[0], 256, 1, f);
-#ifdef FRODO_SC
-		delay = 0;
-		do {
-			if ((stat = Save1541State(f)) == -1) {
-				ADVANCE_CYCLES;
-				delay++;
-			}
-		} while (stat == -1);
-		fputc(delay, f);
-#else
-		Save1541State(f);
-		fputc(0, f);	// No delay
-#endif
+        #ifdef FRODO_SC
+		    delay = 0;
+		    do {
+			    if ((stat = Save1541State(f)) == -1) {
+				    ADVANCE_CYCLES;
+				    delay++;
+			    }
+		    } while (stat == -1);
+		    fputc(delay, f);
+        #else
+		    Save1541State(f);
+		    fputc(0, f);	// No delay
+        #endif
 		Save1541JobState(f);
 	}
 	fclose(f);
@@ -576,24 +644,29 @@ bool C64::LoadSnapshot(char *filename)
 {
 	FILE *f;
 
-	if ((f = fopen(filename, "rb")) != NULL) {
+	if ((f = fopen(filename, "rb")) != NULL) 
+    {
 		char Header[] = SNAPSHOT_HEADER;
 		char *b = Header, c = 0;
 		uint8 delay, i;
 
 		// For some reason memcmp()/strcmp() and so forth utterly fail here.
-		while (*b > 32) {
-			if ((c = fgetc(f)) != *b++) {
+		while (*b > 32) 
+        {
+			if ((c = fgetc(f)) != *b++) 
+            {
 				b = NULL;
 				break;
 			}
 		}
-		if (b != NULL) {
+
+		if (b != NULL) 
+        {
 			uint8 flags;
 			bool error = false;
-#ifndef FRODO_SC
-			long vicptr;	// File offset of VIC data
-#endif
+            #ifndef FRODO_SC
+			    long vicptr;	// File offset of VIC data
+            #endif
 
 			while (c != 10)
 				c = fgetc(f);	// Shouldn't be necessary
@@ -603,9 +676,9 @@ bool C64::LoadSnapshot(char *filename)
 				return false;
 			}
 			flags = fgetc(f);
-#ifndef FRODO_SC
-			vicptr = ftell(f);
-#endif
+            #ifndef FRODO_SC
+    			vicptr = ftell(f);
+            #endif
 
 			error |= !LoadVICState(f);
 			error |= !LoadSIDState(f);
@@ -613,14 +686,14 @@ bool C64::LoadSnapshot(char *filename)
 			error |= !LoadCPUState(f);
 
 			delay = fgetc(f);	// Number of cycles the 6510 is ahead of the previous chips
-#ifdef FRODO_SC
-			// Make the other chips "catch up" with the 6510
-			for (i=0; i<delay; i++) {
-				TheVIC->EmulateCycle();
-				TheCIA1->EmulateCycle();
-				TheCIA2->EmulateCycle();
-			}
-#endif
+            #ifdef FRODO_SC
+			    // Make the other chips "catch up" with the 6510
+			    for (i=0; i<delay; i++) {
+				    TheVIC->EmulateCycle();
+				    TheCIA1->EmulateCycle();
+				    TheCIA2->EmulateCycle();
+			    }
+            #endif
 			if ((flags & SNAPSHOT_1541) != 0) {
 				Prefs *prefs = new Prefs(ThePrefs);
 	
@@ -635,15 +708,15 @@ bool C64::LoadSnapshot(char *filename)
 				error |= !Load1541State(f);
 	
 				delay = fgetc(f);	// Number of cycles the 6502 is ahead of the previous chips
-#ifdef FRODO_SC
-				// Make the other chips "catch up" with the 6502
-				for (i=0; i<delay; i++) {
-					TheVIC->EmulateCycle();
-					TheCIA1->EmulateCycle();
-					TheCIA2->EmulateCycle();
-					TheCPU->EmulateCycle();
-				}
-#endif
+                #ifdef FRODO_SC
+				    // Make the other chips "catch up" with the 6502
+				    for (i=0; i<delay; i++) {
+					    TheVIC->EmulateCycle();
+					    TheCIA1->EmulateCycle();
+					    TheCIA2->EmulateCycle();
+					    TheCPU->EmulateCycle();
+				    }
+                #endif
 				Load1541JobState(f);
 			} else if (ThePrefs.Emul1541Proc) {	// No emulation in snapshot, but currently active?
 				Prefs *prefs = new Prefs(ThePrefs);
@@ -653,10 +726,10 @@ bool C64::LoadSnapshot(char *filename)
 				delete prefs;
 			}
 
-#ifndef FRODO_SC
-			fseek(f, vicptr, SEEK_SET);
-			LoadVICState(f);	// Load VIC data twice in SL (is REALLY necessary sometimes!)
-#endif
+            #ifndef FRODO_SC
+			    fseek(f, vicptr, SEEK_SET);
+			    LoadVICState(f);	// Load VIC data twice in SL (is REALLY necessary sometimes!)
+            #endif
 			fclose(f);
 	
 			if (error) {
@@ -676,60 +749,64 @@ bool C64::LoadSnapshot(char *filename)
 	}
 }
 
-
-/*
- *  Constructor, system-dependent things
- */
-
-void C64::c64_ctor1()
+bool C64::loadRomFiles()
 {
-	//Debug("C64::c64_ctor1\n");
+	FILE *file;
 
-	// Initialize joystick variables.
-	joy_state = 0xff;
+	// Load Basic ROM
+	if ((file = fopen(BASIC_ROM_FILE, "rb")) != NULL) {
+		if (fread(Basic, 1, 0x2000, file) != 0x2000) {
+			ShowRequester("Can't read 'Basic ROM'.", "Quit");
+			return false;
+		}
+		fclose(file);
+	} else {
+		ShowRequester("Can't find 'Basic ROM'.", "Quit");
+		return false;
+	}
 
-	// No need to check for state change.
-	state_change = false;
+	// Load Kernal ROM
+	if ((file = fopen(KERNAL_ROM_FILE, "rb")) != NULL) {
+		if (fread(Kernal, 1, 0x2000, file) != 0x2000) {
+			ShowRequester("Can't read 'Kernal ROM'.", "Quit");
+			return false;
+		}
+		fclose(file);
+	} else {
+		ShowRequester("Can't find 'Kernal ROM'.", "Quit");
+		return false;
+	}
+
+	// Load Char ROM
+	if ((file = fopen(CHAR_ROM_FILE, "rb")) != NULL) {
+		if (fread(Char, 1, 0x1000, file) != 0x1000) {
+			ShowRequester("Can't read 'Char ROM'.", "Quit");
+			return false;
+		}
+		fclose(file);
+	} else {
+		ShowRequester("Can't find 'Char ROM'.", "Quit");
+		return false;
+	}
+
+	// Load 1541 ROM
+	if ((file = fopen(FLOPPY_ROM_FILE, "rb")) != NULL) {
+		if (fread(ROM1541, 1, 0x4000, file) != 0x4000) {
+			ShowRequester("Can't read '1541 ROM'.", "Quit");
+			return false;
+		}
+		fclose(file);
+	} else {
+		ShowRequester("Can't find '1541 ROM'.", "Quit");
+		return false;
+	}
+
+	return true;
 }
 
-void C64::c64_ctor2()
+bool C64::isCancelled()
 {
-    startTime = SDL_GetTicks();
-
-	//Debug("C64::c64_ctor2\n");
-}
-
-
-/*
- *  Destructor, system-dependent things
- */
-
-void C64::c64_dtor()
-{
-	//Debug("C64::c64_dtor\n");
-}
-
-
-/*
- *  Start emulation
- */
-
-void C64::Run()
-{
-	// Reset chips
-	TheCPU->Reset();
-	TheSID->Reset();
-	TheCIA1->Reset();
-	TheCIA2->Reset();
-	TheCPU1541->Reset();
-
-	// Patch kernal IEC routines
-	orig_kernal_1d84 = Kernal[0x1d84];
-	orig_kernal_1d85 = Kernal[0x1d85];
-	PatchKernal(ThePrefs.FastReset, ThePrefs.Emul1541Proc);
-
-	// Start the CPU thread
-	emulationLoop();
+    return quit_thyself;
 }
 
 
@@ -767,7 +844,6 @@ void C64::Resume()
 	have_a_break = false;
 }
 
-
 /*
  *  Vertical blank: Poll keyboard and joysticks, update window
  */
@@ -776,209 +852,170 @@ void C64::VBlank(bool draw_frame)
 {
     //Debug("C64::VBlank\n");
 
-	// Poll the keyboard.
-	TheDisplay->PollKeyboard(TheCIA1->KeyMatrix, TheCIA1->RevMatrix, &joykey);
-	// Poll the joysticks.
-	TheCIA1->Joystick1 = poll_joystick(0);
-	TheCIA1->Joystick2 = poll_joystick(1);
+    TheJoystick->update();
 
-	// Joystick keyboard emulation.
-	if (TheDisplay->NumLock())
-		TheCIA1->Joystick1 &= joykey;
-	else
-		TheCIA1->Joystick2 &= joykey;
+	// Poll keyboard
+	TheInput->getState(TheCIA1->KeyMatrix, TheCIA1->RevMatrix);
 
-	if (ThePrefs.JoystickSwap) {
-		uint8 tmp = TheCIA1->Joystick1;
-		TheCIA1->Joystick1 = TheCIA1->Joystick2;
-		TheCIA1->Joystick2 = tmp;
+    // Poll joystick
+    uint8 joykey = TheJoystick->getState();
+
+	if (!ThePrefs.JoystickSwap) 
+    {
+        TheCIA1->Joystick1  = 0xff;
+		TheCIA1->Joystick2  = joykey;
 	}
+    else
+    {
+		TheCIA1->Joystick1  = joykey;
+        TheCIA1->Joystick2  = 0xff;
+    }
 
 	// Count TOD clocks.
 	TheCIA1->CountTOD();
 	TheCIA2->CountTOD();
 
-#if 0
-	// Output a frag.
-	TheSID->VBlank();
-#endif
-	
 	if (have_a_break)
+    {
 		return;
+    }
 
-	// Update the window if needed.
+    sync();
+
 	if (draw_frame) {
+	    // Perform the actual screen update exactly at the
+	    // beginning of an interval for the smoothest video.
 
-        uint32 elapsedTime = SDL_GetTicks() - startTime;
-        //printf("ELAPSED: %d\n", elapsedTime);
+		TheDisplay->Update();
+	}
 
-		int speed_index = elapsedTime <= 0 ? 999 : ticksPerFrame * 100 * ThePrefs.SkipFrames / ((int) elapsedTime + 1);
+}
 
-		// Synchronize to the timer if limiting the speed.
-		if (ThePrefs.LimitSpeed && speed_index > 100) {
 
-		    // Limit speed to 100% if desired (20ms/frame)
-		    // If the SID emulation is on and no frames are skipped, synchronize to the SID
+#define ABSOLUTE_TIMING 1
+void C64::sync(bool init)
+{
+    if (init)
+    {
+        startTime = SDL_GetTicks();
+        nextVBlankTime = startTime + ticksPerFrame;
+        speedometerUpdateTime = 0;
+        return;
+    }
 
-			if (ThePrefs.SIDType == SIDTYPE_DIGITAL && ThePrefs.SkipFrames <= 1)
+    // measure elapsed time
+    uint32 currentTime = SDL_GetTicks();
+
+    uint32 elapsedTime = currentTime - startTime;
+
+    //printf("ELAPSED: %d\n", elapsedTime);
+
+	int speed_index = elapsedTime <= 0 ? 999 : ticksPerFrame * 100 / ((int) elapsedTime + 1);
+
+	// limiting the speed to 100%
+	if (ThePrefs.LimitSpeed)
+    {
+        if (currentTime <= nextVBlankTime) 
+        {
+            uint32 waitTime = nextVBlankTime - currentTime;
+            SDL_Delay(waitTime);
+        }
+
+        #if ABSOLUTE_TIMING
+            nextVBlankTime += ticksPerFrame;
+            if (nextVBlankTime < currentTime)
             {
-                if (elapsedTime < ticksPerFrame)
-                {
-                    //printf("ELAPSED: %d  /  DELAY: %d\n", elapsedTime, ticksPerFrame-elapsedTime);
-                    SDL_Delay(ticksPerFrame-elapsedTime);
-                }
-			}
-			else
-            {
-                SDL_Delay(ThePrefs.SkipFrames * ticksPerFrame - elapsedTime);
-                //printf("SKIP FRAMES: %d\n", ThePrefs.SkipFrames);
-			}
+                nextVBlankTime = currentTime;
+            }
+        #else
+            nextVBlankTime = currentTime + ticksPerFrame;
+        #endif
 
+        if (speed_index > 100)
+        {
             speed_index = 100;
         }
+    }
 
-        startTime = SDL_GetTicks();
+    if (speedometerUpdateTime == 0 || currentTime - speedometerUpdateTime >= 1000)
+    {
+        TheDisplay->Speedometer((int) speed_index);
+        speedometerUpdateTime = currentTime;
+    }
 
-		// Perform the actual screen update exactly at the
-		// beginning of an interval for the smoothest video.
-		TheDisplay->Update();
-
-		TheDisplay->Speedometer((int)speed_index);
-	}
+    startTime = SDL_GetTicks();
 }
 
 /*
- *  Open/close joystick drivers given old and new state of
- *  joystick preferences
+ * One emulation step
  */
 
-bool joystick_open[2];
-
-void C64::open_close_joysticks(bool oldjoy1, bool oldjoy2, bool newjoy1, bool newjoy2)
+void C64::emulationStep()
 {
-    if (SDL_NumJoysticks() < 1) return;
+    if (quit_thyself)
+    {
+        return;
+    }
 
-    joystick_open[0] = false;
-    joystick_open[1] = false;
+    #ifdef FRODO_SC
 
-    /*
-	if (oldjoy1 != newjoy1) {
-		joystick_open[0] = false;
-		if (newjoy1) {
-			JOYINFO joyinfo;
-			if (joyGetPos(0, &joyinfo) == JOYERR_NOERROR)
-				joystick_open[0] = true;
-		}
-	}
+		EmulateCycles();
+		state_change = false;
 
-	if (oldjoy2 != newjoy2) {
-		joystick_open[1] = false;
-		if (newjoy1) {
-			JOYINFO joyinfo;
-			if (joyGetPos(1, &joyinfo) == JOYERR_NOERROR)
-				joystick_open[1] = true;
-		}
-	}
-    */
+    #else
+		// The order of calls is important here
+		int cycles = TheVIC->EmulateLine();
+		TheSID->EmulateLine();
 
-	// XXX: Should have our own new prefs!
-	state_change = true;
-}
-
-
-/*
- *  Poll joystick port, return CIA mask
- */
-
-uint8 C64::poll_joystick(int port)
-{
-	uint8 j = 0xff;
-
-	if (joystick_open[port]) {
-
-        /*
-		JOYINFO joyinfo;
-		if (joyGetPos(port, &joyinfo) == JOYERR_NOERROR) {
-			int x = joyinfo.wXpos;
-			int y = joyinfo.wYpos;
-			int buttons = joyinfo.wButtons;
-			int s1 = JOYSTICK_SENSITIVITY;
-			int s2 = 100 - JOYSTICK_SENSITIVITY;
-			if (x < JOYSTICK_MIN + s1*JOYSTICK_RANGE/100)
-				j &= 0xfb; // Left
-			else if (x > JOYSTICK_MIN + s2*JOYSTICK_RANGE/100)
-				j &= 0xf7; // Right
-			if (y < JOYSTICK_MIN + s1*JOYSTICK_RANGE/100)
-				j &= 0xfe; // Up
-			else if (y > JOYSTICK_MIN + s2*JOYSTICK_RANGE/100)
-				j &= 0xfd; // Down
-			if (buttons & 1)
-				j &= 0xef; // Button
-			if (buttons & 2) {
-				Pause();
-				while (joyGetPos(port, &joyinfo) == JOYERR_NOERROR && (joyinfo.wButtons & 2))
-					Sleep(100);
-				Resume();
-			}
-		}
-        */
-	}
-
-	return j;
-}
-
-/*
- * The emulation's main loop
- */
-
-void C64::emulationLoop()
-{
-	//Debug("C64::emulationLoop\n");
-
-    ticksPerFrame = 1000/SCREEN_FREQ;
-
-	thread_running = true;
-
-	while (!quit_thyself) {
-
-		if (have_a_break) {
-			// TheDisplay->WaitUntilActive();
-        }
-
-        #ifdef FRODO_SC
-		    EmulateCycles();
-		    state_change = false;
-        #else
-		    // The order of calls is important here
-		    int cycles = TheVIC->EmulateLine();
-		    TheSID->EmulateLine();
-            #if !PRECISE_CIA_CYCLES
-		            TheCIA1->EmulateLine(ThePrefs.CIACycles);
-		            TheCIA2->EmulateLine(ThePrefs.CIACycles);
-            #endif
-		    if (ThePrefs.Emul1541Proc) {
-			    int cycles_1541 = ThePrefs.FloppyCycles;
-			    TheCPU1541->CountVIATimers(cycles_1541);
-
-			    if (!TheCPU1541->Idle) {
-				    // 1541 processor active, alternately execute
-				    //  6502 and 6510 instructions until both have
-				    //  used up their cycles
-				    while (cycles >= 0 || cycles_1541 >= 0)
-					    if (cycles > cycles_1541)
-						    cycles -= TheCPU->EmulateLine(1);
-					    else
-						    cycles_1541 -= TheCPU1541->EmulateLine(1);
-			    } else
-				    TheCPU->EmulateLine(cycles);
-		    } else
-			    // 1541 processor disabled, only emulate 6510
-			    TheCPU->EmulateLine(cycles);
+        #if !PRECISE_CIA_CYCLES
+		    TheCIA1->EmulateLine(ThePrefs.CIACycles);
+		    TheCIA2->EmulateLine(ThePrefs.CIACycles);
         #endif
-	}
 
-	thread_running = false;
+		if (ThePrefs.Emul1541Proc) 
+        {
+			int cycles_1541 = ThePrefs.FloppyCycles;
+			TheCPU1541->CountVIATimers(cycles_1541);
 
+			if (!TheCPU1541->Idle) 
+            {
+				// 1541 processor active, alternately execute
+				//  6502 and 6510 instructions until both have
+				//  used up their cycles
+				while (cycles >= 0 || cycles_1541 >= 0)
+                {
+					if (cycles > cycles_1541)
+                    {
+						cycles -= TheCPU->EmulateLine(1);
+                    }
+					else
+                    {
+						cycles_1541 -= TheCPU1541->EmulateLine(1);
+                    }
+                }
+			} 
+            else
+            {
+				TheCPU->EmulateLine(cycles);
+            }
+		}
+        else
+        {
+			// 1541 processor disabled, only emulate 6510
+			TheCPU->EmulateLine(cycles);
+        }
+    #endif
+}
+
+void C64::soundSync()
+{
+}
+
+int C64::ShowRequester(const char* text, const char* button1, const char* button2)
+{
+    printf("%s\n", text);
+
+    return 1;
 }
 
 #ifdef FRODO_SC
@@ -988,8 +1025,8 @@ void C64::EmulateCycles()
     bool emul1541 = ThePrefs.Emul1541Proc;
     bool vicCycleFinished = false;
 
-	thread_running = true;
-	while (!state_change) {
+	while (!state_change) 
+    {
 
 		// The order of calls is important here
         vicCycleFinished = TheVIC->EmulateCycle();
@@ -1003,8 +1040,8 @@ void C64::EmulateCycles()
 		TheCIA2->CheckIRQs();
 
         #ifndef BATCH_CIA_CYCLES
-		        TheCIA1->EmulateCycle();
-		        TheCIA2->EmulateCycle();
+		    TheCIA1->EmulateCycle();
+		    TheCIA2->EmulateCycle();
         #endif
 
 		TheCPU->EmulateCycle();
@@ -1013,7 +1050,9 @@ void C64::EmulateCycles()
         {
 		    TheCPU1541->CountVIATimers(1);
 		    if (!TheCPU1541->Idle)
+            {
 			    TheCPU1541->EmulateCycle();
+            }
         }
 
 		CycleCounter++;

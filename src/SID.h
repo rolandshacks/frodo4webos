@@ -35,6 +35,7 @@ public:
 	void GetState(MOS6581State *ss);
 	void SetState(MOS6581State *ss);
 	void EmulateLine(void);
+    void WaitForSync(uint32 timeout);
 
 private:
 	void open_close_renderer(int old_type, int new_type);

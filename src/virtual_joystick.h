@@ -15,35 +15,46 @@
 
 class VirtualJoystick
 {
+    public:
+        typedef enum
+        {
+            MODE_DISABLED = 0,
+            MODE_KEYBOARD = 1,
+            MODE_MOUSE    = 2
+        } stickmode_t;
+
     private:
-        C64* the_c64;
-        C64Display* display;
         bool visible;
+        int mode;
 
         SDL_Rect windowRect;
-
         SDL_Rect rectDeadZone;
         int deadZoneWidth;
         int deadZoneHeight;
 
-        int state;
+        uint8 state;
 
     public:
         VirtualJoystick();
         virtual ~VirtualJoystick();
+        int getMode() const;
+        void setMode(int mode);
+        void update();
+        uint8 getState();
+        void keyInput(int key, bool press);
 
     public:
-        void create(C64 *the_c64, C64Display* display);
+        void create();
         void show(bool doShow);
         bool isShown();
-        void draw(SDL_Surface* surface, Uint32 fg, Uint32 bg, Uint32 border);
+        void draw(SDL_Surface* surface, int y, int h, Uint32 fg, Uint32 bg, Uint32 border);
         int updateState(int buttons, int x, int y);
-        int getState();
+        void keyInput(int key);
 
     private:
         void init();
         void cleanup();
-        void layout(int w, int h);
+        void layout(int x, int y, int w, int h);
 
 };
 

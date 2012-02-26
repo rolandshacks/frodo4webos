@@ -297,6 +297,7 @@ MOS6569::MOS6569(C64 *c64, C64Display *disp, MOS6510 *CPU, uint8 *RAM, uint8 *Ch
  *  Reinitialize the colors table for when the palette has changed
  */
 
+/*
 void MOS6569::ReInitColors(void)
 {
 	int i;
@@ -337,7 +338,7 @@ void MOS6569::ReInitColors(void)
 		scanline += xmod;
 	}
 }
-
+*/
 
 /*
  *  Get VIC state
@@ -1496,7 +1497,8 @@ bool MOS6569::EmulateCycle(void)
 	uint8 mask;
 	int i;
 
-	switch (cycle) {
+	switch (cycle) 
+    {
 
 		// Fetch sprite pointer 3, increment raster counter, trigger raster IRQ,
 		// test for Bad Line, reset BA if sprites 3 and 4 off, read data of sprite 3
@@ -1546,7 +1548,9 @@ bool MOS6569::EmulateCycle(void)
 				lp_triggered = vblanking = false;
 
 				if (!(frame_skipped = --skip_counter))
+                {
 					skip_counter = ThePrefs.SkipFrames;
+                }
 
 				the_c64->VBlank(!frame_skipped);
 
@@ -1558,7 +1562,9 @@ bool MOS6569::EmulateCycle(void)
 
 				// Trigger raster IRQ if IRQ in line 0
 				if (irq_raster == 0)
+                {
 					raster_irq();
+                }
 
 			}
 

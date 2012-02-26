@@ -583,8 +583,10 @@ void MOS6502_1541::illegal_op(uint8 op, uint16 at)
 	char illop_msg[80];
 
 	sprintf(illop_msg, "1541: Illegal opcode %02x at %04x.", op, at);
-	if (ShowRequester(illop_msg, "Reset 1541", "Reset C64"))
+	if (the_c64->ShowRequester(illop_msg, "Reset 1541", "Reset C64"))
+    {
 		the_c64->Reset();
+    }
 	Reset();
 }
 

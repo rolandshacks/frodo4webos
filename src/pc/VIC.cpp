@@ -44,10 +44,12 @@
 
 #include "../sysdeps.h"
 
+#include "../main.h"
 #include "../VIC.h"
 #include "../C64.h"
 #include "../CPUC64.h"
 #include "../Display.h"
+#include "../Input.h"
 #include "../Prefs.h"
 
 // First and last displayed line
@@ -197,9 +199,7 @@ static void init_text_color_table(uint8 *colors)
 }
 
 MOS6569::MOS6569(C64 *c64, C64Display *disp, MOS6510 *CPU, uint8 *RAM, uint8 *Char, uint8 *Color)
-#ifndef GLOBAL_VARS
 	: ram(RAM), char_rom(Char), color_ram(Color), the_c64(c64), the_display(disp), the_cpu(CPU)
-#endif
 {
 	int i;
 
@@ -258,6 +258,7 @@ MOS6569::MOS6569(C64 *c64, C64Display *disp, MOS6510 *CPU, uint8 *RAM, uint8 *Ch
  *  Reinitialize the colors table for when the palette has changed
  */
 
+/*
 void MOS6569::ReInitColors(void)
 {
 	int i;
@@ -266,7 +267,9 @@ void MOS6569::ReInitColors(void)
 	uint8 xlate_colors[256];
 	memset(xlate_colors, 0, sizeof(xlate_colors));
 	for (i = 0; i < 16; i++)
+    {
 		xlate_colors[colors[i]] = i;
+    }
 
 	// Get the new colors.
 	the_display->InitColors(colors);
@@ -285,20 +288,28 @@ void MOS6569::ReInitColors(void)
 	b3c_color = colors[b3c];
 	mm0_color = colors[mm0];
 	mm1_color = colors[mm1];
+
 	for (i = 0; i < 8; i++)
+    {
 		spr_color[i] = colors[sc[i]];
+    }
+
 	mc_color_lookup[0] = b0c_color | (b0c_color << 8);
 	mc_color_lookup[1] = b1c_color | (b1c_color << 8);
 	mc_color_lookup[2] = b2c_color | (b2c_color << 8);
 
 	// Translate the chunky buffer.
 	uint8 *scanline = the_display->BitmapBase();
-	for (int y = 0; y < DISPLAY_Y; y++) {
+	for (int y = 0; y < DISPLAY_Y; y++) 
+    {
 		for (int x = 0; x < DISPLAY_X; x++)
+        {
 			scanline[x] = xlate_colors[scanline[x]];
+        }
 		scanline += xmod;
 	}
 }
+*/
 
 void MOS6569::make_mc_table(void)
 {
@@ -769,7 +780,9 @@ inline void MOS6569::vblank(void)
 	lp_triggered = false;
 
 	if (!(frame_skipped = --skip_counter))
+    {
 		skip_counter = ThePrefs.SkipFrames;
+    }
 
 	the_c64->VBlank(!frame_skipped);
 
@@ -1408,8 +1421,10 @@ int MOS6569::EmulateLine(void)
 		bad_lines_enabled = ctrl1 & 0x10;
 
 	// Skip frame? Only calculate Bad Lines then
-	if (frame_skipped) {
-		if (raster >= FIRST_DMA_LINE && raster <= LAST_DMA_LINE && ((raster & 7) == y_scroll) && bad_lines_enabled) {
+	if (frame_skipped) 
+    {
+		if (raster >= FIRST_DMA_LINE && raster <= LAST_DMA_LINE && ((raster & 7) == y_scroll) && bad_lines_enabled) 
+        {
 			is_bad_line = true;
 			cycles_left = ThePrefs.BadLineCycles;
 		}
@@ -1709,7 +1724,9 @@ int MOS6569::EmulateLine(void)
 VIC_nop:
 	// Skip this if all sprites are off
 	if (me | sprite_on)
+    {
 		cycles_left -= el_update_mc(raster);
+    }
 
 	return cycles_left;
 }
