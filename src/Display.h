@@ -18,13 +18,21 @@ const int DISPLAY_X = 0x180;
 const int DISPLAY_Y = 0x110;
 #endif
 
-
 class C64Window;
 class C64Screen;
 class C64;
 class Prefs;
 class OSD;
 class VirtualJoystick;
+
+#if USE_OPENGL
+class Renderer;
+class Texture;
+class Font;
+#endif
+
+#include <string>
+#include "resources.h"
 
 // Class for C64 graphics display
 class C64Display
@@ -35,8 +43,10 @@ class C64Display
         volatile bool backgroundInvalid;
         volatile bool invalidated;
 
-    private:
+    public:
+        resource_list_t res;
 
+    private:
         // use tripple buffering to make
         // input and display fully independent
         uint8* back_buffer;
@@ -49,6 +59,14 @@ class C64Display
         int bufferHeight;
         int bufferBitsPerPixel;
         int bufferPitch;
+
+        float viewX;
+        float viewY;
+        float viewW;
+        float viewH;
+
+        uint32 lastDrawTime;
+        float elapsedTime;
 
     private:
 	    int led_state[4];
@@ -92,15 +110,34 @@ class C64Display
         void toggleStatusBar();
         void openAbout();
         void closeAbout();
+        bool isAboutActive() const;
 
     public:
         void showAbout(bool show);
-	    void draw_string(SDL_Surface *s, int x, int y, const char *str, uint8 front_color, uint8 back_color);
-        void draw_window(SDL_Surface *s, int x, int y, int w, int h, const char *str, uint8 text_color, uint8 front_color, uint8 back_color);
-        void update_led_blinking();         // Update LED
+        void update_led_blinking();
 
     private:
-        void doRedraw();
+        void doRedrawGL();
+        void doInitGL();
+        void doFreeGL();
+
+    private:
+        void drawScreen();
+        void drawAbout();
+        void drawVirtualJoystick();
+
+    private:
+        std::string statusText;
+        float statusTextTimeout;
+        void drawStatusBar();
+
+    public:
+        void setStatusMessage(const std::string& message, float timeOut=0.0f);
+
+
+    #if USE_OPENGL
+        Renderer* renderer;
+    #endif
 };
 
 #endif

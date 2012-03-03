@@ -35,8 +35,8 @@ class C64Input : public InputHandler
         bool isQuitRequested() const;
 
     public: // implements InputHandler
-        void handleMouseEvent(int x, int y, bool press);
-        void handleKeyEvent(int key, int sym, bool press);
+        void handleMouseEvent(int x, int y, int eventType);
+        void handleKeyEvent(int key, int sym, int eventType);
 
     public:
         void pushKey(int key);

@@ -33,6 +33,7 @@ class VirtualJoystick
         int deadZoneHeight;
 
         uint8 state;
+        uint32 lastActivity;
 
     public:
         VirtualJoystick();
@@ -47,7 +48,7 @@ class VirtualJoystick
         void create();
         void show(bool doShow);
         bool isShown();
-        void draw(SDL_Surface* surface, int y, int h, Uint32 fg, Uint32 bg, Uint32 border);
+        void draw(Renderer* renderer, resource_list_t* res);
         int updateState(int buttons, int x, int y);
         void keyInput(int key);
 

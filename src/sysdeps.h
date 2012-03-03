@@ -11,13 +11,38 @@ extern "C"
 {
 #include <SDL.h>
 #include <SDL_thread.h>
+#include <SDL_ttf.h>
 #include <SDL_audio.h>
 #include <time.h>
+
+#if USE_OPENGL
+    #ifdef WEBOS
+        #include <GLES/gl.h>
+        #define HAVE_GLES
+    #else
+        #include <windows.h>
+        #include <gl/GL.h>
+    #endif
+
+    #ifndef GL_BGR
+        #define GL_BGR 0x80E0 
+    #endif
+
+    #ifndef GL_BGRA
+        #define GL_BGRA 0x80E1
+    #endif
+
+#endif
 
 #ifdef WIN32
     #pragma comment(lib, "winmm.lib")
     #pragma comment(lib, "SDLmain.lib")
     #pragma comment(lib, "SDL.lib")
+    #pragma comment(lib, "SDL_image.lib")
+    #pragma comment(lib, "SDL_ttf.lib")
+    #if USE_OPENGL
+        #pragma comment(lib, "opengl32.lib")
+    #endif
 #endif
 
 #ifdef WEBOS

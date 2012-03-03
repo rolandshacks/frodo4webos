@@ -15,6 +15,7 @@
 #include "virtual_joystick.h"
 
 bool run_async_emulation = true;
+bool limitFramerate = true;
 
 // Global variables
 char AppDirPath[1024];	// Path of application directory
@@ -113,7 +114,7 @@ void Frodo::run()
 
             elapsed = SDL_GetTicks() - start;
 
-            if (start == 0 || elapsed >= cycleTime)
+            if (start == 0 || elapsed >= cycleTime || false == limitFramerate)
             {
                 break;
             }
@@ -180,13 +181,19 @@ void Frodo::handleEvent(SDL_Event* event)
         case SDL_MOUSEBUTTONDOWN:
         {
             SDL_MouseButtonEvent* e = &event->button;
-            inputHandler->handleMouseEvent(e->x, e->y, true);
+            inputHandler->handleMouseEvent(e->x, e->y, InputHandler::EVENT_Down);
             break;
         }
         case SDL_MOUSEBUTTONUP:
         {
             SDL_MouseButtonEvent* e = &event->button;
-            inputHandler->handleMouseEvent(e->x, e->y, false);
+            inputHandler->handleMouseEvent(e->x, e->y, InputHandler::EVENT_Up);
+            break;
+        }
+        case SDL_MOUSEMOTION:
+        {
+            SDL_MouseMotionEvent* e = &event->motion;
+            inputHandler->handleMouseEvent(e->x, e->y, InputHandler::EVENT_Move);
             break;
         }
         case SDL_KEYDOWN:
@@ -196,7 +203,7 @@ void Frodo::handleEvent(SDL_Event* event)
 
             if (TheC64->TheDisplay->isOsdActive())
             {
-                inputHandler->handleKeyEvent(key, mod, true);
+                inputHandler->handleKeyEvent(key, mod, InputHandler::EVENT_Down);
             }
             else
             {
@@ -250,7 +257,7 @@ void Frodo::handleEvent(SDL_Event* event)
                         }
                         default:
                         {
-                            inputHandler->handleKeyEvent(key, mod, true);
+                            inputHandler->handleKeyEvent(key, mod, InputHandler::EVENT_Down);
                             break;
                         }
                     }
@@ -264,7 +271,11 @@ void Frodo::handleEvent(SDL_Event* event)
             SDLKey key = event->key.keysym.sym;
             SDLMod mod = event->key.keysym.mod;
 
-            if (TheC64->TheJoystick->getMode() == VirtualJoystick::MODE_KEYBOARD &&
+            if (TheC64->TheDisplay->isOsdActive())
+            {
+                inputHandler->handleKeyEvent(key, mod, InputHandler::EVENT_Up);
+            }
+            else if (TheC64->TheJoystick->getMode() == VirtualJoystick::MODE_KEYBOARD &&
                 (key == SDLK_LEFT ||
                 key == SDLK_RIGHT ||
                 key == SDLK_UP ||
@@ -275,7 +286,7 @@ void Frodo::handleEvent(SDL_Event* event)
             }
             else
             {
-                inputHandler->handleKeyEvent(key, mod, false);
+                inputHandler->handleKeyEvent(key, mod, InputHandler::EVENT_Up);
             }
 
             break;
@@ -315,6 +326,12 @@ int main(int argc, char **argv)
         PDL_Init(0);
         atexit(PDL_Quit);
     #endif
+
+    if (TTF_Init() == -1)
+    {
+        fprintf(stderr, "Unable to initialize SDL_ttf: %s\n", TTF_GetError());
+        return 0;
+    }
 
     srand( (unsigned)time( NULL ) );
 

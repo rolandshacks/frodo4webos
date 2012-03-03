@@ -14,6 +14,9 @@
 #include "ndir.h"
 #include "osd.h"
 #include "Input.h"
+#include "renderer.h"
+#include "texture.h"
+#include "font.h"
 
 #include <algorithm>
 
@@ -24,6 +27,10 @@
 #endif
 
 using namespace std;
+
+static float movement = 0.0f;
+static int controlDir = 0;
+static const int maxFilenameLen = 36;
 
 OSD::OSD()
 {
@@ -39,48 +46,47 @@ void OSD::init()
 {
     visible = false;
 
+    pos = 0.0f;
+
     windowRect.x = windowRect.y = windowRect.w = windowRect.h = 0;
     fileListFrame.x = fileListFrame.y = fileListFrame.w = fileListFrame.h = 0;
     toolbarRect.x = toolbarRect.y = toolbarRect.w = toolbarRect.h = 0;
 
-    oscFontWidth = 8;
-    oscFontHeight = 8;
-    #ifdef WEBOS
-    oscMaxLen = 24;
-    oscRowHeight = 35;
-    #else
-    oscMaxLen = 16;
-    oscRowHeight = 35;
-    #endif
-    oscColumnWidth = oscMaxLen*oscFontWidth + 12;
+    commandList.push_back( command_t ( CMD_ENABLE_JOYSTICK1, "JOY1", "Enable Joystick 1" ) );
+    commandList.push_back( command_t ( CMD_ENABLE_JOYSTICK2, "JOY2", "Enable Joystick 2" ) );
+    commandList.push_back( command_t ( CMD_ENABLE_TRUEDRIVE, "DRV", "Toggle 1541 Drive Emulation" ) );
+    commandList.push_back( command_t ( CMD_WARP, "WARP", "Toggle Warp Mode" ) );
+    commandList.push_back( command_t ( CMD_RESET, "RESET", "Reset" ) );
 
-    oscTitleHeight = 12;
+    commandList.push_back( command_t ( CMD_KEY_F1, "F1", "F1 Key" ) );
+    commandList.push_back( command_t ( CMD_KEY_F2, "F2", "F2 Key" ) );
+    commandList.push_back( command_t ( CMD_KEY_F3, "F3", "F3 Key" ) );
+    commandList.push_back( command_t ( CMD_KEY_F4, "F4", "F4 Key" ) );
+    commandList.push_back( command_t ( CMD_KEY_F5, "F5", "F5 Key" ) );
+    commandList.push_back( command_t ( CMD_KEY_F6, "F6", "F6 Key" ) );
+    commandList.push_back( command_t ( CMD_KEY_F7, "F7", "F7 Key" ) );
+    commandList.push_back( command_t ( CMD_KEY_F8, "F8", "F8 Key" ) );
 
-    commandList.push_back( command_t ( CMD_ENABLE_JOYSTICK1, "JOY1" ) );
-    commandList.push_back( command_t ( CMD_ENABLE_JOYSTICK2, "JOY2" ) );
-    commandList.push_back( command_t ( CMD_ENABLE_TRUEDRIVE, "DRV" ) );
-    commandList.push_back( command_t ( CMD_WARP, "WARP" ) );
-    commandList.push_back( command_t ( CMD_RESET, "RESET" ) );
+    commandList.push_back( command_t ( CMD_SHOW_ABOUT, "HELP", "Show Help" ) );
 
-    commandList.push_back( command_t ( CMD_KEY_F1, "F1" ) );
-    commandList.push_back( command_t ( CMD_KEY_F2, "F2" ) );
-    commandList.push_back( command_t ( CMD_KEY_F3, "F3" ) );
-    commandList.push_back( command_t ( CMD_KEY_F4, "F4" ) );
-    commandList.push_back( command_t ( CMD_KEY_F5, "F5" ) );
-    commandList.push_back( command_t ( CMD_KEY_F6, "F6" ) );
-    commandList.push_back( command_t ( CMD_KEY_F7, "F7" ) );
-    commandList.push_back( command_t ( CMD_KEY_F8, "F8" ) );
+    scrollElementTop = scrollPixelRange = 0;
+    scrollPixelOffset = 0.0f;
 
-    commandList.push_back( command_t ( CMD_SHOW_ABOUT, "ABOUT" ) );
+    mousePressed = mouseGesture = false;
+    mouseX = mousePressPosX = 0;
+    mouseY = mousePressPosY = 0;
+
+    memset(&layout, 0, sizeof(layout));
+    layout.valid = false;
 }
 
-void OSD::create(C64* the_c64, C64Display* display)
+void OSD::create(Renderer* renderer, C64* the_c64, C64Display* display)
 {
+    this->renderer = renderer;
     this->the_c64 = the_c64;
     this->display = display;
 
-    buttonWidth = 50;
-    buttonHeight = 50;
+    buttonWidth = 60;
 
     char nameBuffer[512];
 
@@ -93,13 +99,20 @@ void OSD::create(C64* the_c64, C64Display* display)
     #endif
 
     currentDirectory = nameBuffer;
-
 }
 
 void OSD::cleanup()
 {
     fileList.clear();
     currentDirectory.clear();
+}
+
+int OSD::getWidth() const
+{
+    int w = renderer->getWidth() - (int) pos;
+    if (w < 0) w = 0;
+
+    return w;
 }
 
 void OSD::show(bool doShow)
@@ -110,6 +123,10 @@ void OSD::show(bool doShow)
 
         if (visible)
         {
+            movement = 0.0f;
+            controlDir = 0;
+
+            pos = renderer->getWidth();
             update();
         }
     }
@@ -120,91 +137,196 @@ bool OSD::isShown()
     return visible;
 }
 
-void OSD::layout(int w, int h)
+void OSD::updateLayout(int w, int h, float elapsedTime, resource_list_t* res)
 {
     int borderX=5;
     int borderY=5;
 
-    windowRect.x = borderX;
+    layout.rowHeight    = res->buttonTexture->getHeight();
+    layout.width        = renderer->getWidth()-(DISPLAY_X-44)*2; //350;
+    layout.height       = renderer->getHeight();
+    layout.titleHeight  = 30;
+
+    if (pos > renderer->getWidth()-layout.width)
+    {
+        pos -= 1000.0f * elapsedTime;
+        if (pos < renderer->getWidth()-layout.width)
+        {
+            pos = renderer->getWidth() - layout.width;
+        }
+    }
+
+    windowRect.x = (int) pos;
     windowRect.y = borderY;
-    windowRect.w = w-borderX*2;
+    windowRect.w = layout.width;
     windowRect.h = h-borderY*2;
 
-    toolbarRect.x = windowRect.x+windowRect.w-buttonWidth;
-    toolbarRect.y = windowRect.y+oscTitleHeight+1;
-    toolbarRect.w = buttonWidth;
-    toolbarRect.h = windowRect.h-oscTitleHeight-1;
+    fileListFrame.x = windowRect.x + 16;
+    fileListFrame.y = windowRect.y + layout.titleHeight;
+    fileListFrame.w = windowRect.w - buttonWidth - 21;
+    fileListFrame.h = windowRect.h - layout.titleHeight - 30;
 
-    fileListFrame.x = windowRect.x;
-    fileListFrame.y = windowRect.y+oscTitleHeight;
-    fileListFrame.w = toolbarRect.x - windowRect.x;
-    fileListFrame.h = windowRect.h-oscTitleHeight;
+    toolbarRect.x = fileListFrame.x + fileListFrame.w + 5;
+    toolbarRect.y = windowRect.y + layout.titleHeight + 1;
+    toolbarRect.w = buttonWidth;
+    toolbarRect.h = windowRect.h - layout.titleHeight - 1;
+
+    layout.valid = true;
 }
 
-void OSD::draw(SDL_Surface* surface, Uint32 fg, Uint32 bg, Uint32 bg2, Uint32 border)
+void OSD::draw(float elapsedTime, resource_list_t* res)
 {
     if (!visible) return;
 
-    layout(surface->w, surface->h);
+    updateLayout(renderer->getWidth(), renderer->getHeight(), elapsedTime, res);
 
-    int fontOffsetY = (oscRowHeight-oscFontHeight) / 2;
-
-	SDL_FillRect(surface, NULL, bg);
-
-    SDL_Rect titleRect = { windowRect.x,
-                           windowRect.y,
+    SDL_Rect titleRect = { windowRect.x+10,
+                           windowRect.y+4,
                            windowRect.w,
-                           oscTitleHeight };
+                           layout.titleHeight };
 
-    SDL_FillRect(surface, &titleRect, border);
-	display->draw_string(surface, windowRect.x + 2, windowRect.y + (oscTitleHeight-oscFontHeight)/2, currentDirectory.c_str(), fg, border);
+
+    glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
+
+    renderer->fillRectangle(windowRect.x, windowRect.y, windowRect.w, windowRect.h);
+
+    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+
+    renderer->drawTiledTexture(res->backgroundTexture,
+                               windowRect.x, windowRect.y,
+                               windowRect.w+res->backgroundTexture->getWidth()/2.0f, windowRect.h);
+
+    renderer->setFont(res->fontSmall);
+    renderer->drawText(titleRect.x + 10, titleRect.y + titleRect.h/2,
+                       currentDirectory.c_str(),
+                       Renderer::ALIGN_MIDDLE);
+
+    renderer->enableClipping(fileListFrame.x, fileListFrame.y,
+                             fileListFrame.w, fileListFrame.h);
+
+    drawFiles(res);
+
+    renderer->disableClipping();
+
+    renderer->drawTexture(res->iconClose,
+                          windowRect.x + windowRect.w-res->iconClose->getWidth()+2,
+                          windowRect.y - res->iconClose->getHeight()/2 + 11);
+
+    drawToolbar(res);
+}
+
+void OSD::drawFiles(resource_list_t* res)
+{
+    if (controlDir != 0)
+    {
+        movement += controlDir;
+        if (movement > 25.0f) movement = 25.0f;
+        else if (movement < -25.0f) movement = -25.0f;
+    }
+    else 
+    {
+        movement *= 0.9f;
+    }
+
+    // --------------------------------------------------------------
+
+    renderer->setFont(res->fontSmall);
 
     // printf("DIR:%s\n", currentDirectory.c_str());
-
-    int ystart = 0;
-	int y = ystart;
-    int x = 0;
 
     char buf[256];
 
     SDL_Rect entryRect;
 
-    for (vector<string>::const_iterator it = fileList.begin();
+    int itemHeight = layout.rowHeight;
+
+    scrollPixelRange = fileList.size() * layout.rowHeight - fileListFrame.h;
+
+    int rowFontOffsetY = (itemHeight - renderer->getFont()->getHeight()) / 2;
+
+    scrollPixelOffset += movement;
+
+    if (scrollPixelOffset >= scrollPixelRange)
+    {
+        scrollPixelOffset = (float) (scrollPixelRange - 1);
+        movement = 0.0f;
+    }
+    else if (scrollPixelOffset < 0.0f)
+    {
+        scrollPixelOffset = 0.0f;
+        movement = 0.0f;
+    }
+
+    int y = (int) -scrollPixelOffset;
+
+    for (vector<fileinfo_t>::const_iterator it = fileList.begin();
          it != fileList.end();
          ++it)
     {
-        const string& fileName = *it;
+        if (y >= -itemHeight && y < fileListFrame.h + itemHeight)
+        {
+            const fileinfo_t& fileInfo = *it;
+            const string& fileName = fileInfo.name;
 
-        strncpy(buf, fileName.c_str(), oscMaxLen);
-        *(buf+oscMaxLen) = '\0';
+            strncpy(buf, fileName.c_str(), maxFilenameLen);
+            *(buf + maxFilenameLen) = '\0';
 
-		//printf("D64-File: %s\n", filename);
+		    //printf("D64-File: %s\n", filename);
 
-        entryRect.x = x+fileListFrame.x+1;
-        entryRect.y = y+fileListFrame.y+1;
-        entryRect.w = oscColumnWidth-2;
-        entryRect.h = oscRowHeight-2;
+            entryRect.x = fileListFrame.x+1;
+            entryRect.y = y+fileListFrame.y+1;
+            entryRect.w = fileListFrame.w-2;
+            entryRect.h = itemHeight-2;
 
-        SDL_FillRect(surface, &entryRect, border);
-		display->draw_string(surface, x+fileListFrame.x+2, y+fontOffsetY+fileListFrame.y, buf, fg, border);
-		y += oscRowHeight;
+            glColor4f(1.0f, 1.0f, 1.0f, 0.1f);
+
+            renderer->drawTiledTexture(res->buttonTexture,
+                                       fileListFrame.x,
+                                       fileListFrame.y+y,
+                                       fileListFrame.w,
+                                       itemHeight);
+
+            glColor4f(1.0f, 1.0f, 1.0f, 0.8f);
+
+            if (!fileInfo.isDirectory)
+            {
+                renderer->drawTexture(res->iconDisk,
+                                      fileListFrame.x+4,
+                                      fileListFrame.y+y+(itemHeight-res->iconDisk->getHeight())/2);
+            }
+            else
+            {
+                renderer->drawTexture(res->iconFolder,
+                                      fileListFrame.x+4,
+                                      fileListFrame.y+y+(itemHeight-res->iconFolder->getHeight())/2);
+            }
+
+            glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+
+            renderer->drawText(fileListFrame.x+28,
+                               fileListFrame.y+y+itemHeight/2,
+                               buf, Renderer::ALIGN_MIDDLE);
+        }
+
+		y += itemHeight;
 
         if (y >= fileListFrame.h)
         {
-            y = ystart;
-            x += oscColumnWidth;
-            if (x >= fileListFrame.w)
-            {
-                break;
-            }
+            break;
         }
-
 	}
+}
 
-	SDL_FillRect(surface, &toolbarRect, bg);
+void OSD::drawToolbar(resource_list_t* res)
+{
+    renderer->setFont(res->fontTiny);
+
     SDL_Rect buttonRect = toolbarRect;
 
+    buttonHeight = res->buttonTexture->getHeight();
     buttonRect.h = buttonHeight;
+
+    int buttonFontHeight = renderer->getFont()->getHeight();
 
     for (vector<command_t>::iterator it = commandList.begin();
          it != commandList.end();
@@ -215,16 +337,21 @@ void OSD::draw(SDL_Surface* surface, Uint32 fg, Uint32 bg, Uint32 bg2, Uint32 bo
         updateCommandState(cmd);
 
         if (buttonRect.y + buttonRect.h >= toolbarRect.y + toolbarRect.h)
+        {
             break;
+        }
 
-        int buttonColor = (cmd.state == STATE_SET) ? bg2 : border;
+        glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
 
-        SDL_FillRect(surface, &buttonRect, buttonColor);
+        renderer->drawTiledTexture((cmd.state == STATE_NORMAL) ? res->buttonTexture : res->buttonPressedTexture,
+                                   buttonRect.x, buttonRect.y,
+                                   buttonRect.w, buttonRect.h);
 
-        display->draw_string(surface,
-                             buttonRect.x + (buttonRect.w - cmd.text.size()*oscFontWidth)/2 ,
-                             buttonRect.y + (buttonRect.h-oscFontHeight)/2,
-                             cmd.text.c_str(), fg, buttonColor);
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+
+        renderer->drawText(buttonRect.x + buttonRect.w/2 ,
+                           buttonRect.y + buttonRect.h/2,
+                           cmd.text.c_str(), Renderer::ALIGN_CENTER|Renderer::ALIGN_MIDDLE);
 
         buttonRect.y += buttonRect.h + 1;
     }
@@ -235,10 +362,14 @@ void OSD::update()
 
     fileList.clear();
 
-    fileList.push_back("(DIR) Parent");
+    fileinfo_t parentInfo;
+    parentInfo.name = "Parent";
+    parentInfo.isDirectory = true;
+    fileList.push_back(parentInfo);
 
 	DIR* dir = opendir (currentDirectory.c_str());
-	if (NULL != dir) {
+	if (NULL != dir) 
+    {
 
 		for (;;)
 		{
@@ -259,13 +390,18 @@ void OSD::update()
 
                     if (extension == "d64" || extension == "t64" /* || extension == "prg" */)
                     {
-                        fileList.push_back(filename);
+                        fileinfo_t fileInfo;
+                        fileInfo.name = filename;
+                        fileInfo.isDirectory = false;
+                        fileList.push_back(fileInfo);
                     }
 			    }
                 else if (dir_entry->d_type == DT_DIR)
                 {
-                    string dirname = "(DIR) " + filename;
-                    fileList.push_back(dirname);
+                    fileinfo_t dirInfo;
+                    dirInfo.name = filename;
+                    dirInfo.isDirectory = true;
+                    fileList.push_back(dirInfo);
                 }
             }
 		}
@@ -273,64 +409,118 @@ void OSD::update()
 		closedir(dir);
 		dir = NULL;
 	}
-}
 
-string OSD::getCachedDiskFilename(int idx)
-{
-    if (idx < 0 || idx >= fileList.size()) return "";
-
-    vector<string>::const_iterator it = fileList.begin() + idx;
-    if (it == fileList.end()) return "";
-
-    return *it;
-}
-
-void OSD::handleMouseEvent(int x, int y, bool press)
-{
-    if (!press) // mouse up
+    /*
+    for (int i=0; i<100; i++)
     {
-        onClick(x, y);
+        char buf[256];
+        sprintf(buf, "TestFile-%d.d64", i);
+
+        fileinfo_t fileInfo;
+        fileInfo.name = buf;
+        fileInfo.isDirectory = false;
+        fileList.push_back(fileInfo);
+    }
+    */
+
+}
+
+OSD::fileinfo_t OSD::getCachedFileInfo(int idx)
+{
+    if (idx >= 0 || idx < fileList.size())
+    {
+        vector<fileinfo_t>::const_iterator it = fileList.begin() + idx;
+        if (it != fileList.end()) return *it;
+    }
+
+    fileinfo_t noInfo;
+    noInfo.name = "";
+    noInfo.isDirectory = false;
+    return noInfo;
+}
+
+void OSD::handleMouseEvent(int x, int y, int eventType)
+{
+    int mouseDeltaX = x - mouseX;
+    int mouseDeltaY = y - mouseY;
+
+    mouseX = x;
+    mouseY = y;
+
+    if (InputHandler::EVENT_Down == eventType) // mouse down
+    {
+        mousePressed = true;
+        mouseGesture = false;
+        mousePressPosX = mouseX;
+        mousePressPosY = mouseY;
+        movement = 0.0f;
+    }
+    else if (InputHandler::EVENT_Up == eventType)
+    {
+        if (!mouseGesture)
+        {
+            onClick(x, y);
+        }
+
+        mousePressed = false;
+        mouseGesture = false;
+        //movement = 0.0f;
+    }
+    else if (InputHandler::EVENT_Move == eventType)
+    {
+        if (mousePressed)
+        {
+            movement = - (float) mouseDeltaY * 4.0f;
+            if (!mouseGesture && (abs(mousePressPosX - mouseX) > 5 || abs(mousePressPosY - mouseY) > 5))
+            {
+                mouseGesture = true;
+            }
+
+        }
     }
 }
 
-void OSD::handleKeyEvent(int key, int sym, bool press)
+void OSD::handleKeyEvent(int key, int sym, int eventType)
 {
+    controlDir = 0;
+
+    bool press = (InputHandler::EVENT_Down == eventType);
+
     if (key == SDLK_ESCAPE)
     {
         visible = false;
+    }
+    else if (key == SDLK_UP)
+    {
+        if (press) controlDir = -1;
+    }
+    else if (key == SDLK_DOWN)
+    {
+        if (press) controlDir = 1;
     }
 }
 
 bool OSD::onClick(int x, int y)
 {
-    if (!visible) return false;
+    if (!visible || !layout.valid) return false;
 
     if (x >= fileListFrame.x && x < fileListFrame.x+fileListFrame.w &&
         y >= fileListFrame.y && y < fileListFrame.y+fileListFrame.h) 
     {
 
-        int oscX = x-fileListFrame.x;
-        int oscY = y-fileListFrame.y;
+        int oscY = y - fileListFrame.y;
+        int idx = (oscY + (int) scrollPixelOffset) / layout.rowHeight;
 
-        int filesPerColumn = (fileListFrame.h+oscRowHeight-1) / oscRowHeight;
-        int row = oscY / oscRowHeight;
-        int col = oscX / oscColumnWidth;
-        int idx = col*filesPerColumn + row;
-
-        //printf("OSC %d / col=%d / row=%d / idx=%d\n", filesPerColumn, col, row, idx);
-
-        string selectedFilename = getCachedDiskFilename(idx);
-        if (!selectedFilename.empty())
+        fileinfo_t fileInfo = getCachedFileInfo(idx);
+        if (!fileInfo.name.empty())
         {
-            printf("SELECTION: %s\n", selectedFilename.c_str());
-
-            if (idx > 0 && selectedFilename.find("(DIR)") == 0)
+            if (idx > 0 && fileInfo.isDirectory)
             {
                 if (currentDirectory.at(currentDirectory.size()-1) != NATIVE_SLASH)
                 {
                     currentDirectory.append(1, NATIVE_SLASH);
                 }
-                currentDirectory.append(selectedFilename.substr(6));
+                currentDirectory.append(fileInfo.name);
                 update();
 
                 return true;
@@ -354,16 +544,7 @@ bool OSD::onClick(int x, int y)
             }
             else
             {
-
-                string diskPath = currentDirectory;
-                if (diskPath.at(diskPath.size()-1) != NATIVE_SLASH)
-                {
-                    diskPath.append(1, NATIVE_SLASH);
-                }
-
-                diskPath.append(selectedFilename);
-
-                setNewFile(diskPath);
+                setNewFile(fileInfo);
             }
         }
 
@@ -374,12 +555,13 @@ bool OSD::onClick(int x, int y)
     {
         int ofsY = y - toolbarRect.y;
         int idx = ofsY / (buttonHeight+1);
-        if (idx >= 0 && idx < commandList.size()) {
-
+        if (idx >= 0 && idx < commandList.size()) 
+        {
             vector<command_t>::const_iterator it = commandList.begin() + idx;
-            if (it != commandList.end()) {
+            if (it != commandList.end())
+            {
                 onCommand(*it);
-                visible = false;
+                //visible = false;
             }
         }
     }
@@ -398,6 +580,7 @@ void OSD::onCommand(const OSD::command_t& command)
     Prefs *prefs = new Prefs(ThePrefs);
 
     bool prefsChanged = false;
+    bool commandDispatched = true;
 
     int id = command.id;
     switch (id)
@@ -446,10 +629,16 @@ void OSD::onCommand(const OSD::command_t& command)
             pushKeyPress(289);
             break;
         case CMD_SHOW_ABOUT:
-            display->showAbout(true);
+            display->showAbout(!display->isAboutActive());
             break;
         default:
+            commandDispatched = false;
             break;
+    }
+
+    if (commandDispatched)
+    {
+        the_c64->TheDisplay->setStatusMessage(command.description);
     }
 
     if (prefsChanged)
@@ -461,25 +650,33 @@ void OSD::onCommand(const OSD::command_t& command)
     delete prefs;
 }
 
-void OSD::setNewFile(const string& filename)
+void OSD::setNewFile(const fileinfo_t& fileInfo)
 {
+    string diskPath = currentDirectory;
+    if (diskPath.at(diskPath.size()-1) != NATIVE_SLASH)
+    {
+        diskPath.append(1, NATIVE_SLASH);
+    }
+
+    diskPath.append(fileInfo.name);
+
 	Prefs *prefs = new Prefs(ThePrefs);
 
-    strcpy(prefs->DrivePath[0], filename.c_str());
+    strcpy(prefs->DrivePath[0], diskPath.c_str());
 
-    int extPos = filename.rfind('.');
+    int extPos = diskPath.rfind('.');
     if (extPos > 0)
     {
-        string extension = filename.substr(extPos+1);
+        string extension = diskPath.substr(extPos+1);
         std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
 
         int driveType = DRVTYPE_DIR;
         if (extension == "prg")
         {
-            int slashPos = filename.rfind(NATIVE_SLASH);
+            int slashPos = diskPath.rfind(NATIVE_SLASH);
             if (slashPos > 0)
             {
-                string parentDir = filename.substr(0, slashPos);
+                string parentDir = diskPath.substr(0, slashPos);
                 strcpy(prefs->DrivePath[0], parentDir.c_str());
             }
 
@@ -501,6 +698,8 @@ void OSD::setNewFile(const string& filename)
 	ThePrefs = *prefs;
 	delete prefs;
 
+    the_c64->TheDisplay->setStatusMessage("Inserted disk: " + fileInfo.name);
+
     //the_c64->Reset();
 }
 
@@ -520,6 +719,9 @@ void OSD::updateCommandState(command_t& command)
             break;
         case CMD_WARP:
             command.state = ThePrefs.LimitSpeed ? STATE_NORMAL : STATE_SET;
+            break;
+        case CMD_SHOW_ABOUT:
+            command.state = the_c64->TheDisplay->isAboutActive() ? STATE_SET : STATE_NORMAL;
             break;
         default:
             break;

@@ -38,8 +38,16 @@ class Frodo
 class InputHandler
 {
     public:
-        virtual void handleMouseEvent(int x, int y, bool press) = 0;
-        virtual void handleKeyEvent(int key, int sym, bool press) = 0;
+        typedef enum
+        {
+            EVENT_Down  = 1,
+            EVENT_Up    = 2,
+            EVENT_Move  = 3
+        } eventtype_t;
+
+    public:
+        virtual void handleMouseEvent(int x, int y, int eventType) = 0;
+        virtual void handleKeyEvent(int key, int sym, int eventType) = 0;
 };
 
 // Global variables

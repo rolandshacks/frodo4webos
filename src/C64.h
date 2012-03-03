@@ -84,8 +84,7 @@ class C64 {
 
 	    MOS6502_1541 *TheCPU1541;	// 1541
 	    Job1541 *TheJob1541;
-
-
+        
     private:
         bool loadRomFiles();
 	    void emulationStep(void);

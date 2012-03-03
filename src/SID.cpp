@@ -1185,24 +1185,31 @@ void DigitalRenderer::calc_buffer(int16 *buf, long count)
 void MOS6581::open_close_renderer(int old_type, int new_type)
 {
 	if (old_type == new_type)
+    {
 		return;
+    }
 
 	// Delete the old renderer
     if (NULL != the_renderer)
     {
 	    delete the_renderer;
+        the_renderer = NULL;
     }
 
 	// Create new renderer
 	if (new_type == SIDTYPE_DIGITAL)
+    {
 		the_renderer = new DigitalRenderer(the_c64);
-	else
-		the_renderer = NULL;
+    }
 
 	// Stuff the current register values into the new renderer
 	if (the_renderer != NULL)
+    {
 		for (int i=0; i<25; i++)
+        {
 			the_renderer->WriteRegister(i, regs[i]);
+        }
+    }
 }
 
 

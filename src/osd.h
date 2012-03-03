@@ -24,15 +24,47 @@ class OSD : public InputHandler
         int buttonWidth;
         int buttonHeight;
 
+        float pos;
+
+        /*
+        int oscWidth;
         int oscMaxLen;
         int oscFontWidth;
         int oscFontHeight;
-        int oscColumnWidth;
         int oscRowHeight;
         int oscTitleHeight;
+        */
+
+        typedef struct
+        {
+            bool    valid;
+
+            int     width;
+            int     height;
+            int     titleHeight;
+
+            int     rowHeight;
+
+        } layout_t;
+
+        layout_t    layout;
+
+        bool mousePressed;
+        bool mouseGesture;
+        int mousePressPosX;
+        int mousePressPosY;
+        int mouseX;
+        int mouseY;
 
         std::string currentDirectory;
-        std::vector<std::string> fileList;
+
+        typedef struct
+        {
+            std::string name;
+            bool isDirectory;
+        } fileinfo_t;
+
+        std::vector<fileinfo_t> fileList;
 
         typedef enum
         {
@@ -62,43 +94,58 @@ class OSD : public InputHandler
         {
             int id;
             std::string text;
+            std::string description;
             int state;
 
-            command_type(int id, const std::string& text)
+            command_type(int id, const std::string& text, const std::string& description)
             {
                 this->id = id;
                 this->text = text;
+                this->description = description;
                 this->state = STATE_NORMAL;
             }
 
         } command_t;
         std::vector<command_t> commandList;
 
+    private:
+        Renderer* renderer;
+
     public:
         OSD();
         virtual ~OSD();
 
     public:
-        void create(C64 *the_c64, C64Display* display);
+        void create(Renderer* renderer, C64 *the_c64, C64Display* display);
         void show(bool doShow);
         bool isShown();
-        void draw(SDL_Surface* surface, Uint32 fg, Uint32 bg, Uint32 bg2, Uint32 border);
+        void draw(float elapsedTime, resource_list_t* res);
 
     public: // implements InputHandler
-        void handleMouseEvent(int x, int y, bool press);
-        void handleKeyEvent(int key, int sym, bool press);
+        void handleMouseEvent(int x, int y, int eventType);
+        void handleKeyEvent(int key, int sym, int eventType);
+
+    public:
+        int getWidth() const;
 
     private:
         bool onClick(int x, int y);
         void init();
         void cleanup();
-        void layout(int w, int h);
-        std::string getCachedDiskFilename(int idx);
+        void updateLayout(int w, int h, float elapsedTime, resource_list_t* res);
+        fileinfo_t getCachedFileInfo(int idx);
         void update();
-        void setNewFile(const std::string& filename);
+        void setNewFile(const fileinfo_t& fileInfo);
         void onCommand(const command_t& command);
         void updateCommandState(command_t& command);
         void pushKeyPress(int key);
+        void drawFiles(resource_list_t* res);
+        void drawToolbar(resource_list_t* res);
+
+    private:
+        int scrollElementTop;
+        int scrollPixelRange;
+        float scrollPixelOffset;
 };
 
 #endif /* _OSD_H */

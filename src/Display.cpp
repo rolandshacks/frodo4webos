@@ -15,8 +15,14 @@
 #include "SAM.h"
 #include "osd.h"
 #include "virtual_joystick.h"
+#include "renderer.h"
+#include "texture.h"
+#include "font.h"
+#include "resources.h"
 
 extern bool run_async_emulation;
+extern bool limitFramerate;
+
 static bool swapBuffers = true;
 
 int initialWidth = 1024;
@@ -25,6 +31,9 @@ int initialHeight = 768;
 //int initialHeight = 250;
 int bitsPerPixel = 8;
 int zoom_factor = 1;
+
+#define MMIN(a, b) (((a) <= (b)) ? (a) : (b))
+#define MMAX(a, b) (((a) >= (b)) ? (a) : (b))
 
 #ifdef WEBOS
   bool enableTitle = true;
@@ -102,6 +111,7 @@ enum {
 };
 
 SDL_Color palette[PALETTE_SIZE];
+uint32 rgba_palette[PALETTE_SIZE];
 
 /*
   C64 keyboard matrix:
@@ -128,22 +138,23 @@ C64Display::C64Display(C64 *the_c64) : TheC64(the_c64)
 	quit_requested = false;
 	speedometer_string[0] = 0;
 
+    // opengl renderer
+    renderer = NULL;
+    lastDrawTime = 0;
+
+    memset(&res, 0, sizeof(res));
+    res.initialized = false;
+
 	// LEDs off
 	for (int i=0; i<4; i++)
+    {
 		led_state[i] = old_led_state[i] = LED_OFF;
+    }
 
 	// Start timer for LED error blinking
 	c64_disp = this;
 
-    if (enabledOSD)
-    {
-        osd = new OSD();
-        osd->create(the_c64, this);
-    }
-    else
-    {
-        osd = NULL;
-    }
+    osd = NULL;
 
     framesPerSecond = 0;
     frameCounter = 0;
@@ -158,6 +169,14 @@ C64Display::C64Display(C64 *the_c64) : TheC64(the_c64)
 
 C64Display::~C64Display()
 {
+    if (NULL != renderer)
+    {
+        doFreeGL();
+        renderer->shutdown();
+        delete renderer;
+        renderer = NULL;
+    }
+
     if (NULL != back_buffer)
     {
         delete [] back_buffer;
@@ -195,20 +214,29 @@ bool C64Display::init()
 	// Open window
     
     #ifdef WEBOS
-	    physicalScreen = SDL_SetVideoMode(0, 0, bitsPerPixel, 0);
+
+        #if USE_OPENGL
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
+	        physicalScreen = SDL_SetVideoMode(0, 0, 0, SDL_OPENGL);
+        #else
+	        physicalScreen = SDL_SetVideoMode(0, 0, bitsPerPixel, 0);
+        #endif
+
     #else
         SDL_WM_SetCaption(VERSION_STRING, "Frodo");
 
-        if (enableScaling)
-    		physicalScreen = SDL_SetVideoMode(initialWidth,
+        #if USE_OPENGL
+    	    physicalScreen = SDL_SetVideoMode(initialWidth,
+                                              initialHeight,
+                                              32,
+                                              SDL_HWSURFACE|SDL_GL_DOUBLEBUFFER|SDL_OPENGL);
+        #else
+    	    physicalScreen = SDL_SetVideoMode(initialWidth,
                                               initialHeight,
                                               bitsPerPixel,
-                                              SDL_DOUBLEBUF|SDL_RESIZABLE);
-        else
-            physicalScreen = SDL_SetVideoMode(DISPLAY_X,
-                                              DISPLAY_Y,
-                                              bitsPerPixel,
-                                              SDL_DOUBLEBUF);
+                                              SDL_HWSURFACE|SDL_DOUBLEBUF|SDL_RESIZABLE);
+        #endif
+
 	#endif
 
     if (NULL == physicalScreen) 
@@ -222,6 +250,8 @@ bool C64Display::init()
     bufferBitsPerPixel  = bitsPerPixel;
     bufferPitch         = DISPLAY_X * bitsPerPixel / 8;
     bufferSize          = bufferPitch * bufferHeight;
+
+    viewX = 0.0f; viewY = 0.0f; viewW = -1.0f; viewH = -1.0f;
 
     front_buffer        = new uint8[bufferSize];
     back_buffer         = new uint8[bufferSize];
@@ -243,6 +273,17 @@ bool C64Display::init()
     memset(front_buffer, 0, bufferSize);
     memset(back_buffer,  0, bufferSize);
     memset(mid_buffer,   0, bufferSize);
+
+    statusText = "";
+    statusTextTimeout = 0.0f;
+
+    InitColors(NULL);
+
+    #if USE_OPENGL
+        renderer = new Renderer();
+        renderer->init(physicalScreen->w, physicalScreen->h);
+        doInitGL();
+    #endif
 
     return true;
 }
@@ -279,20 +320,16 @@ void C64Display::Update()
 
         invalidated = true;
     }
-    else
-    {
-        doRedraw();
-    }
 }
 
 void C64Display::redraw()
 {
-    if (!invalidated)
+    if (!invalidated && limitFramerate)
     {
         return;
     }
 
-    if (swapBuffers)
+    if (invalidated && swapBuffers)
     { // make mid buffer to front buffer for display
         if (-1 != SDL_LockMutex(bufferLock))
         {
@@ -306,347 +343,290 @@ void C64Display::redraw()
 
     invalidated = false;
 
-    doRedraw();
+    #if USE_OPENGL
+        doRedrawGL();
+    #else
+        doRedraw();
+    #endif
     
 }
 
-void C64Display::doRedraw()
+void C64Display::doInitGL()
+{
+    res.screenTexture           = new Texture(bufferWidth, bufferHeight, 32);
+    res.backgroundTexture       = new Texture(RES_BACKGROUND);
+    res.buttonTexture           = new Texture(RES_BUTTON);
+    res.buttonPressedTexture    = new Texture(RES_BUTTON_PRESSED);
+    res.tapZonesTexture         = new Texture(RES_TAP_ZONES);
+    res.stickTexture            = new Texture(RES_STICK);
+
+    res.iconDiskActivity        = new Texture(RES_ICON_DISK_ACTIVITY);
+    res.iconDiskError           = new Texture(RES_ICON_DISK_ERROR);
+    res.iconDisk                = new Texture(RES_ICON_DISK);
+    res.iconFolder              = new Texture(RES_ICON_FOLDER);
+    res.iconClose               = new Texture(RES_ICON_CLOSE);
+
+    res.fontTiny                = new Font(RES_FONT, 12.0f);
+    res.fontSmall               = new Font(RES_FONT, 14.0f);
+    res.fontNormal              = new Font(RES_FONT, 18.0f);
+    res.fontLarge               = new Font(RES_FONT, 28.0f);
+
+    res.initialized = true;
+
+    if (enabledOSD)
+    {
+        osd = new OSD();
+        osd->create(renderer, TheC64, this);
+
+        //osd->show(true);
+    }
+
+    renderer->setFont(res.fontNormal);
+
+    setStatusMessage("Welcome!");
+}
+
+void C64Display::doFreeGL()
+{
+    if (res.initialized)
+    {
+        res.initialized = false;
+
+        delete res.screenTexture;
+        delete res.backgroundTexture;
+        delete res.buttonTexture;
+        delete res.buttonPressedTexture;
+        delete res.tapZonesTexture;
+        delete res.stickTexture;
+
+        delete res.iconDiskActivity;
+        delete res.iconDiskError;
+        delete res.iconDisk;
+        delete res.iconFolder;
+        delete res.iconClose;
+
+        delete res.fontTiny;
+        delete res.fontSmall;
+        delete res.fontNormal;
+        delete res.fontLarge;
+    }
+}
+
+void C64Display::doRedrawGL()
 {
     frameCounter++;
 
-    if (backgroundInvalid)
-    {
-        backgroundInvalid = false;
-        SDL_FillRect(physicalScreen, NULL, 0x0);
-    }
+    renderer->beginDraw();
 
-    SDL_Surface* out = physicalScreen;
-    uint8* source_buffer = (run_async_emulation && swapBuffers) ? front_buffer : back_buffer;
+    uint32 currentTicks = SDL_GetTicks();
+    uint32 elapsedTicks = (lastDrawTime > 0) ? currentTicks-lastDrawTime : 0;
+    lastDrawTime = currentTicks;
+    elapsedTime = (float) elapsedTicks / 1000.0f;
+
+    if (!enableTitle)
+    {
+        drawScreen();
+
+        if (!osd->isShown())
+        {
+            drawVirtualJoystick();
+        }
+    }
 
     if (NULL != osd && osd->isShown())
     {
-        osd->draw(out, black, fill_gray, shadow_gray, shine_gray);
-    	SDL_Flip(out);
-        return;
+        osd->draw(elapsedTime, &res);
+        drawStatusBar(); // TO BE REMOVED
+    }
+    else
+    {
+        drawStatusBar();
     }
 
-	Uint32 currentTicks = SDL_GetTicks();
-	if (currentTicks - lastLEDUpdate > 400 || lastLEDUpdate == 0) {
-		lastLEDUpdate = currentTicks;
-		update_led_blinking();
-	}
+    if (enableTitle)
+    {
+        drawAbout();
+    }
 
-	int screenWidth = out->w;
-	int screenHeight = out->h;
+    renderer->endDraw();
+}
 
-	int barH = 15;
-	int barW = screenWidth;
-	int barY = out->h-barH;
+void C64Display::drawScreen()
+{
+    int screenWidth = getWidth();
+    int screenHeight = getHeight();
 
-	zoom_factor = out->w / 340;
+	int clientWidth = screenWidth;
+	int clientHeight = screenHeight;
 
-	if (zoom_factor < 1) zoom_factor = 1;
-	else if (zoom_factor > 4) zoom_factor = 4;
+    if (NULL != osd && osd->isShown())
+    {
+        clientWidth -= osd->getWidth();
+    }
+    #ifdef WEBOS
+        if (TheC64->TheInput->isVirtualKeyboardEnabled())
+        {
+            clientHeight -= 330;
+        }
+    #endif
 
+	zoom_factor = MMIN(clientWidth / (DISPLAY_X-44), clientHeight / (DISPLAY_Y-80));
+	if (zoom_factor < 1)
+    {
+        zoom_factor = 1;
+    }
+	else if (zoom_factor > 4)
+    {
+        zoom_factor = 4;
+    }
+
+    /*
     if (TheC64->TheInput->isVirtualKeyboardEnabled() && zoom_factor > 2)
     {
         zoom_factor = 2;
     }
+    */
 
-    int ofsX = (physicalScreen->w - bufferWidth*zoom_factor) / 2;
-    int sourceArea = bufferHeight *zoom_factor;
-    int clientArea = physicalScreen->h;
+    int outW = bufferWidth   * zoom_factor;
+    int outH = bufferHeight  * zoom_factor;
+    int outX = (clientWidth  - outW) / 2;
+    int outY = (clientHeight - outH) / 2;
 
-	#ifdef WEBOS   
-	    int ofsY = TheC64->TheInput->isVirtualKeyboardEnabled() ? -55 : (clientArea - sourceArea) / 2;
-	#else
-        int ofsY = (clientArea - sourceArea) / 2;
-	#endif
-
+    if (viewH < 0.0f || viewW < 0.0f)
     {
-		Uint8* srcBuffer  = (Uint8*) source_buffer;
-		Uint8* destBuffer = ((Uint8*) out->pixels);
+        viewX = (float) outX;
+        viewY = (float) outY;
+        viewW = (float) outW;
+        viewH = (float) outH;
+    }
+    else
+    {
+        viewX += (outX-viewX)*elapsedTime*10;
+        viewY += (outY-viewY)*elapsedTime*10;
+        viewW += (outW-viewW)*elapsedTime*10;
+        viewH += (outH-viewH)*elapsedTime*10;
+    }
 
-		int yStart = 0;
-		if (ofsY < 0)
-		{
-			yStart += (-ofsY/zoom_factor);
-			ofsY = 0;
-		}
+    res.screenTexture->bind();
 
-		int xStart = 0;
-		if (ofsX < 0)
-		{
-			xStart += -(ofsX/zoom_factor);
-			ofsX = 0;
-		}
+    if (res.screenTexture->getBitsPerPixel() != bufferBitsPerPixel)
+    {
+        res.screenTexture->updateData(front_buffer, bufferBitsPerPixel, rgba_palette);
+    }
+    else
+    {
+        res.screenTexture->updateData(front_buffer);
+    }
 
-		Uint8* srcLine    = srcBuffer  + bufferPitch * yStart + xStart;
-		Uint8* destLine   = destBuffer + out->pitch * ofsY + ofsX;
-		Uint8* destLine2  = destLine   + out->pitch;
-		Uint8* destLine3  = destLine2  + out->pitch;
-		Uint8* destLine4  = destLine3  + out->pitch;
+    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+    //renderer->fillRectangle(outX, outY, outW, outH);
+    renderer->fillRectangle(viewX, viewY, viewW, viewH);
 
-		int y2    = ofsY;
-		int yEnd  = bufferHeight - (enabledStatusBar ? barH : 0);
-		int yEnd2 = out->h - (enabledStatusBar ? barH : 0);
+    res.screenTexture->unbind();
+}
 
-		for (int y=yStart; y<yEnd; y++)
-		{
-			if (y2+zoom_factor-1 >= yEnd2) break;
-		
-			Uint8* src    = srcLine;
-			Uint8* dest   = destLine;
-			Uint8* dest2  = destLine2;
-			Uint8* dest3  = destLine3;
-			Uint8* dest4  = destLine4;
-			Uint8 c;
+void C64Display::drawVirtualJoystick()
+{
+    TheC64->TheJoystick->draw(renderer, &res);
+}
 
-			int x2 = ofsX;
+void C64Display::setStatusMessage(const std::string& message, float timeOut)
+{
+    statusText = message;
 
-			for (int x=0; x<bufferWidth; x++)
-			{
-				if (x2+zoom_factor-1 >= out->w) break;
+    if (timeOut <= 0.0f) timeOut = 3.0f;
+    statusTextTimeout = timeOut;
+}
 
-				c = *(src++);
+void C64Display::drawStatusBar()
+{
+    int width = getWidth();
+    int height = getHeight();
 
-				if (1 == zoom_factor)
-				{
-					*(dest++) = c;
-				}
-				else if (2 == zoom_factor)
-				{
-					*(dest++)  = c;
-					*(dest++)  = c;
-					*(dest2++) = c;
-					*(dest2++) = c;
-				}
-				else if (3 == zoom_factor)
-				{
-					*(dest++)  = c;
-					*(dest++)  = c;
-					*(dest++)  = c;
-					*(dest2++) = c;
-					*(dest2++) = c;
-					*(dest2++) = c;
-					*(dest3++) = c;
-					*(dest3++) = c;
-					*(dest3++) = c;
-				}
-				else if (4 == zoom_factor)
-				{
-					*(dest++)  = c;
-					*(dest++)  = c;
-					*(dest++)  = c;
-					*(dest++)  = c;
-					*(dest2++) = c;
-					*(dest2++) = c;
-					*(dest2++) = c;
-					*(dest2++) = c;
-					*(dest3++) = c;
-					*(dest3++) = c;
-					*(dest3++) = c;
-					*(dest3++) = c;
-					*(dest4++) = c;
-					*(dest4++) = c;
-					*(dest4++) = c;
-					*(dest4++) = c;
-				}
+    renderer->setFont(res.fontTiny);
+    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 
-				x2 += zoom_factor;
-			}
+    int textPos = 8;
 
-			srcLine   += bufferPitch;
-			destLine  += out->pitch * zoom_factor;
-			destLine2 += out->pitch * zoom_factor;
-			destLine3 += out->pitch * zoom_factor;
-			destLine4 += out->pitch * zoom_factor;
+    { // disk state
+        int disk_state = LED_OFF;
+	    for (int i=0; i<4; i++)
+        {
+            if (led_state[i] != LED_OFF)
+            {
+                disk_state = led_state[i];
+                break;
+            }
+	    }
 
-			y2 += zoom_factor;
-		}
+        if (disk_state == LED_ON)
+        {
+            renderer->drawTexture(res.iconDiskActivity, width-34, height-32);
+        }
+        else if (disk_state == LED_ERROR_ON)
+        {
+            renderer->drawTexture(res.iconDiskError, width-34, height-32);
+        }
     }
 
     if (enabledStatusBar)
     {
-	    // Draw speedometer/LEDs
-	    SDL_Rect r = {0, barY, screenWidth, barH};
+        renderer->drawText(textPos, height-6,
+                           speedometer_string,
+                           Renderer::ALIGN_BOTTOM);
 
-	    SDL_FillRect(out, &r, fill_gray);
-	    r.h = 1;
-	    SDL_FillRect(out, &r, shine_gray);
-	    r.y = barY + barH-1;
-	    SDL_FillRect(out, &r, shadow_gray);
-
-	    r.w = 16;
-	    for (int i=2; i<6; i++)
-        {
-		    r.x = barW * i/5 - 24; r.y = barY + 4;
-		    SDL_FillRect(out, &r, shadow_gray);
-		    r.y = barY + 10;
-		    SDL_FillRect(out, &r, shine_gray);
-	    }
-	    r.y = barY; r.w = 1; r.h = barH;
-	    for (int i=0; i<5; i++)
-        {
-		    r.x = barW * i / 5;
-		    SDL_FillRect(out, &r, shine_gray);
-		    r.x = barW * (i+1) / 5 - 1;
-		    SDL_FillRect(out, &r, shadow_gray);
-	    }
-	    r.y = barY + 4; r.h = 7;
-	    for (int i=2; i<6; i++)
-        {
-		    r.x = barW * i/5 - 24;
-		    SDL_FillRect(out, &r, shadow_gray);
-		    r.x = barW * i/5 - 9;
-		    SDL_FillRect(out, &r, shine_gray);
-	    }
-	    r.y = barY + 5; r.w = 14; r.h = 5;
-	    for (int i=0; i<4; i++)
-        {
-		    r.x = barW * (i+2) / 5 - 23;
-		    int c;
-		    switch (led_state[i]) {
-			    case LED_ON:
-				    c = green;
-				    break;
-			    case LED_ERROR_ON:
-				    c = red;
-				    break;
-			    default:
-				    c = black;
-				    break;
-		    }
-		    SDL_FillRect(out, &r, c);
-	    }
-
-	    draw_string(out, barW * 1/5 + 8, barY + 4, "D\x12 8", black, fill_gray);
-	    draw_string(out, barW * 2/5 + 8, barY + 4, "D\x12 9", black, fill_gray);
-	    draw_string(out, barW * 3/5 + 8, barY + 4, "D\x12 10", black, fill_gray);
-	    draw_string(out, barW * 4/5 + 8, barY + 4, "D\x12 11", black, fill_gray);
-	    draw_string(out, 24, barY + 4, speedometer_string, black, fill_gray);
+        textPos += 100;
     }
 
-    TheC64->TheJoystick->draw(out,
-                              toolbarHeight, out->h - toolbarHeight*2, 
-                              black, fill_gray, shine_gray);
-
-    if (enableTitle)
+    if (statusTextTimeout > 0.0f)
     {
-        int titleWidth = 340; if (titleWidth > out->w) titleWidth = out->w;
-        int titleHeight = 160;
+        statusTextTimeout -= elapsedTime;
+        renderer->setFont(res.fontNormal);
+        renderer->drawText(textPos, height-6, statusText.c_str(), Renderer::ALIGN_BOTTOM);
+    }
+}
 
-        int titleX = (out->w - titleWidth) / 2;
-        int titleY = (out->h - titleHeight) / 2;
+void C64Display::drawAbout()
+{
+    int width = res.tapZonesTexture->getWidth() + 40;
+    int height = res.tapZonesTexture->getHeight() + 220;
 
-        draw_window(out, titleX, titleY, titleWidth, titleHeight,
-                    "FRODO for webOS",
-                    white, fill_gray, shadow_gray);
-
-        int x = titleX + 5;
-        int y = titleY + 25;
-
-        uint8 fg = black;
-        uint8 bg = fill_gray;
-
-        draw_string(out, x, y, "(C) by Christian Bauer", fg, bg); y += 10;
-        draw_string(out, x, y, "webOS Version by Roland Schabenberger", fg, bg); y += 10;
-
-        y += 20;
-        draw_string(out, x, y, "CONTROL AREAS:", fg, bg); y += 10;
-
-        draw_string(out, x, y, "top-left: RUN/STOP", fg, bg); y += 10;
-        draw_string(out, x, y, "top-middle: CONTROL PANEL", fg, bg); y += 10;
-        draw_string(out, x, y, "top-right: AUTORUN", fg, bg); y += 10;
-        draw_string(out, x, y, "bottom-left: TOGGLE LED", fg, bg); y += 10;
-        draw_string(out, x, y, "bottom-middle: SPACE", fg, bg); y += 10;
-        draw_string(out, x, y, "bottom-right: VIRTUAL KEYS", fg, bg); y += 10;
-        draw_string(out, x, y, "middle-left: STICK INPUT", fg, bg); y += 10;
-        draw_string(out, x, y, "middle-right: BUTTON INPUT", fg, bg); y += 10;
+    int clientWidth = getWidth();
+    if (NULL != osd && osd->isShown())
+    {
+        clientWidth -= osd->getWidth();
     }
 
-	// Update display
-	SDL_Flip(physicalScreen);
+    int ofs = (clientWidth - width) / 2;
+
+    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+
+    renderer->drawTiledTexture(res.backgroundTexture, ofs, (getHeight()-height)/2, width, height);
+
+    float y = (getHeight()-height)/2 + 40.0f;
+    float x = ofs + 40;
+
+    renderer->setFont(res.fontLarge);
+    renderer->drawText(x, y, "C64 for WebOS"); y += renderer->getFont()->getHeight();
+    renderer->setFont(res.fontNormal);
+    renderer->drawText(x, y, "Ported by Roland Schabenberger"); y += renderer->getFont()->getHeight();
+    renderer->drawText(x, y, "Original Frodo by Christian Bauer"); y += renderer->getFont()->getHeight();
+
+    y += 30.0f;
+    renderer->setFont(res.fontLarge);
+    renderer->drawText(x, y, "Tap Corners for Control"); y += renderer->getFont()->getHeight();
+    y += 10.0f;
+
+    renderer->drawTexture(res.tapZonesTexture, ofs+20, y);
+
+    //renderer->setFont(res.fontTiny);
+    //renderer->drawText(ofs+20, (getHeight()-height)/2 + height - 5 - res.fontTiny->getHeight(), "v1.0.4", Renderer::ALIGN_BOTTOM);
 }
 
 void C64Display::showAbout(bool show)
 {
     enableTitle = show;
 }
-
-void C64Display::draw_window(SDL_Surface *s, int x, int y, int w, int h, const char *str, uint8 text_color, uint8 front_color, uint8 back_color)
-{
-    if (x < 0) x = (s->w - w) / 2;
-    if (y < 0) y = (s->h - h) / 2;
-
-    SDL_Rect win;
-
-    win.x = x;
-    win.y = y;
-    win.w = w;
-    win.h = 20;
-
-    SDL_FillRect(s, &win, back_color);
-
-    win.y += win.h;
-    win.h = h - 20;
-
-    SDL_FillRect(s, &win, front_color);
-
-    win.y = y;
-
-    x += 4;
-    y = win.y + 6;
-
-    draw_string(s, x, y, str, text_color, back_color);
-}
-
-/*
- *  Draw string into surface using the C64 ROM font
- */
-
-void C64Display::draw_string(SDL_Surface *s, int x, int y, const char *str, uint8 front_color, uint8 back_color)
-{
-    if (x<0 || y<0) return;
-    if (y+7 >= s->h) return;
-
-	uint8 *pb = (uint8 *)s->pixels + s->pitch*y + x;
-	char c;
-	while ((c = *str++) != 0) 
-    {
-        if (x+7 >= s->w) break;
-
-        if (c>='a' && c<='z') c -= 'a'-'A';
-        if (c=='\\') c = '/';
-
-        if ((c>='A' && c<= 'Z') ||
-            (c>='0' && c<= '9') ||
-            c == '-' || c == '.' || c == ':' || c == ' ' || c == '/' ||
-            c == '(' || c == ')' || c == '%')
-        {
-
-		    uint8 *q = TheC64->Char + c*8 + 0x800;
-		    uint8 *p = pb;
-		    for (int y=0; y<8; y++) 
-            {
-			    uint8 v = *q++;
-			    p[0] = (v & 0x80) ? front_color : back_color;
-			    p[1] = (v & 0x40) ? front_color : back_color;
-			    p[2] = (v & 0x20) ? front_color : back_color;
-			    p[3] = (v & 0x10) ? front_color : back_color;
-			    p[4] = (v & 0x08) ? front_color : back_color;
-			    p[5] = (v & 0x04) ? front_color : back_color;
-			    p[6] = (v & 0x02) ? front_color : back_color;
-			    p[7] = (v & 0x01) ? front_color : back_color;
-			    p += s->pitch;
-		    }
-		    pb += 8;
-
-            x += 8;
-        }
-	}
-}
-
 
 /*
  *  Update drive LED display (deferred until Update())
@@ -692,12 +672,9 @@ void C64Display::Speedometer(int speed)
     frameCounter = 0;
 
 	sprintf(speedometer_string, "%d%% %dfps", speed, framesPerSecond);
+
+    // printf("SPEED: %s\n", speedometer_string);
 }
-
-
-/*
- *  Return pointer to bitmap data
- */
 
 uint8* C64Display::BitmapBase(void)
 {
@@ -709,11 +686,6 @@ uint8* C64Display::BitmapBase(void)
 
     return ptr;
 }
-
-
-/*
- *  Return number of bytes per row
- */
 
 int C64Display::BitmapXMod(void)
 {
@@ -755,27 +727,50 @@ void C64Display::InitColors(uint8 *colors)
 	palette[red].g          = palette[red].b            = 0;
 	palette[green].g        = 0xf0;
 	palette[green].r        = palette[green].b          = 0;
-    
-    if (physicalScreen->format->BitsPerPixel == 8)
-    {
-	    SDL_SetColors(physicalScreen, palette, 0, PALETTE_SIZE);
-    }
 
-	for (int i=0; i<256; i++)
+    for (int i=0; i<PALETTE_SIZE; i++)
     {
-		colors[i] = i & 0x0f;
+        // precompute openGl rgba palette
+        rgba_palette[i] = 0xff000000|((uint32)palette[i].b<<16) | ((uint32)palette[i].g << 8) | ((uint32)palette[i].r);
+    }
+    
+    #if !USE_OPENGL
+        if (physicalScreen->format->BitsPerPixel == 8)
+        {
+	        SDL_SetColors(physicalScreen, palette, 0, PALETTE_SIZE);
+        }
+    #endif
+
+    if (NULL != colors)
+    {
+	    for (int i=0; i<256; i++)
+        {
+		    colors[i] = i & 0x0f;
+        }
     }
 }
 
 void C64Display::resize(int w, int h)
 {
-	SDL_Surface* newPhysicalSurface = SDL_SetVideoMode(w, h, bitsPerPixel, SDL_DOUBLEBUF|SDL_RESIZABLE);
+    #if USE_OPENGL
+	    SDL_Surface* newPhysicalSurface = SDL_SetVideoMode(w, h, 32, SDL_HWSURFACE|SDL_GL_DOUBLEBUFFER|SDL_OPENGL);
+    #else
+	    SDL_Surface* newPhysicalSurface = SDL_SetVideoMode(w, h, bitsPerPixel, SDL_HWSURFACE|SDL_DOUBLEBUF|SDL_RESIZABLE);
+    #endif
 
 	if (NULL != newPhysicalSurface) 
     {
 		physicalScreen = newPhysicalSurface;
-		SDL_SetColors(physicalScreen, palette, 0, PALETTE_SIZE);
+
+        #if !USE_OPENGL
+		    SDL_SetColors(physicalScreen, palette, 0, PALETTE_SIZE);
+        #endif
 	}
+
+    if (NULL != renderer)
+    {
+        renderer->resize(w, h);
+    }
 
     invalidateBackground();
 }
@@ -824,4 +819,9 @@ void C64Display::closeAbout()
         enableTitle = false;
         invalidateBackground();
     }
+}
+
+bool C64Display::isAboutActive() const
+{
+    return enableTitle;
 }

@@ -47,4 +47,4 @@ the following:
    DRV   : Toggle true 1541 drive emulation. Disabled by default.
    RESET : Reset C64.
    F1-F8 : Function keys.
-   ABOUT : Show about box.
+   HELP  : Show help.

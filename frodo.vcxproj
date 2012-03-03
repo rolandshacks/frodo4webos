@@ -18,6 +18,7 @@
     <ClCompile Include="Src\C64.cpp" />
     <ClCompile Include="Src\CPU_common.cpp" />
     <ClCompile Include="Src\Display.cpp" />
+    <ClCompile Include="src\font.cpp" />
     <ClCompile Include="Src\IEC.cpp" />
     <ClCompile Include="src\Input.cpp" />
     <ClCompile Include="Src\main.cpp" />
@@ -28,6 +29,7 @@
     <ClCompile Include="Src\pc\CPUC64.cpp" />
     <ClCompile Include="Src\pc\VIC.cpp" />
     <ClCompile Include="Src\Prefs.cpp" />
+    <ClCompile Include="src\renderer.cpp" />
     <ClCompile Include="Src\REU.cpp" />
     <ClCompile Include="Src\SAM.cpp" />
     <ClCompile Include="Src\sc\CIA_SC.cpp" />
@@ -35,6 +37,7 @@
     <ClCompile Include="Src\sc\CPUC64_SC.cpp" />
     <ClCompile Include="Src\sc\VIC_SC.cpp" />
     <ClCompile Include="Src\SID.cpp" />
+    <ClCompile Include="src\texture.cpp" />
     <ClCompile Include="Src\virtual_joystick.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -51,19 +54,22 @@
     <ClInclude Include="Src\CPU_emulline.h" />
     <ClInclude Include="Src\Display.h" />
     <ClInclude Include="Src\FixPoint.h" />
+    <ClInclude Include="src\font.h" />
     <ClInclude Include="Src\IEC.h" />
     <ClInclude Include="src\Input.h" />
     <ClInclude Include="Src\main.h" />
     <ClInclude Include="Src\ndir.h" />
     <ClInclude Include="Src\osd.h" />
     <ClInclude Include="Src\Prefs.h" />
-    <ClInclude Include="Src\resource.h" />
+    <ClInclude Include="src\renderer.h" />
+    <ClInclude Include="src\resources.h" />
     <ClInclude Include="Src\REU.h" />
     <ClInclude Include="Src\ROlib.h" />
     <ClInclude Include="Src\SAM.h" />
     <ClInclude Include="Src\SID.h" />
     <ClInclude Include="Src\sysconfig.h" />
     <ClInclude Include="Src\sysdeps.h" />
+    <ClInclude Include="src\texture.h" />
     <ClInclude Include="Src\Version.h" />
     <ClInclude Include="Src\VIC.h" />
     <ClInclude Include="Src\virtual_joystick.h" />

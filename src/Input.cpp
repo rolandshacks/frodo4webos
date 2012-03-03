@@ -138,6 +138,8 @@ void C64Input::translateKey(SDLKey key,
 {
 	int c64_key = -1;
 
+    //printf("KEY: %d\n", key);
+
 	switch (key) 
     {
 		case SDLK_a: c64_key = MATRIX(1,2); break;
@@ -330,11 +332,11 @@ static void swap(int& a, int& b)
     b = c;
 }
 
-void C64Input::handleKeyEvent(int key, int mod, bool press)
+void C64Input::handleKeyEvent(int key, int mod, int eventType)
 {
     TheDisplay->closeAbout();
 
-    if (press)
+    if (InputHandler::EVENT_Down == eventType)
     {
         pushKey((int) key);
     }
@@ -352,15 +354,11 @@ void C64Input::handleKeyEvent(int key, int mod, bool press)
     }
 }
 
-void C64Input::handleMouseEvent(int x, int y, bool press)
+void C64Input::handleMouseEvent(int x, int y, int eventType)
 {
     TheDisplay->closeAbout();
 
-    if (press)
-    {
-        /* */
-    }
-    else
+    if (InputHandler::EVENT_Up == eventType)
     {
         if (y < toolbarHeight)
         {

@@ -6,8 +6,14 @@
 
 #include "sysdeps.h"
 
+#include "renderer.h"
+#include "texture.h"
+#include "font.h"
+#include "resources.h"
+
 #include "virtual_joystick.h"
 
+extern int toolbarHeight;
 static void swap(int& a, int& b);
 
 VirtualJoystick::VirtualJoystick()
@@ -22,6 +28,7 @@ VirtualJoystick::~VirtualJoystick()
 
 void VirtualJoystick::init()
 {
+    lastActivity = 0;
     state = 0xff;
     visible = true;
 
@@ -45,6 +52,7 @@ void VirtualJoystick::show(bool doShow)
     if (doShow != visible)
     {
         visible = doShow;
+        lastActivity = 0;
     }
 }
 
@@ -69,19 +77,38 @@ void VirtualJoystick::layout(int x, int y, int w, int h)
     rectDeadZone.h = deadZoneHeight;
 }
 
-void VirtualJoystick::draw(SDL_Surface* surface, int y, int h, Uint32 fg, Uint32 bg, Uint32 border)
+void VirtualJoystick::draw(Renderer* renderer, resource_list_t* res)
 {
     if (MODE_MOUSE != mode)
     {
         return;
     }
 
-    layout(0, y, surface->w, h);
+    layout(0, 0, renderer->getWidth(), renderer->getHeight());
 
     // not visible, no input or just button
-    if (!visible || 0xff == state || 0xef == state) return;
+    if (!visible) return; // || 0xff == state || 0xef == state) return;
 
-    SDL_FillRect(surface, &rectDeadZone,  bg);
+    uint32 currentTicks = SDL_GetTicks();
+    uint32 elapsedTicks = currentTicks - lastActivity;
+
+    if (lastActivity > 0 && elapsedTicks > 5000)
+    {
+        return;
+    }
+
+    float x = (float) (rectDeadZone.x + rectDeadZone.w/2 - res->stickTexture->getWidth() / 2);
+    float y = (float) (rectDeadZone.y + rectDeadZone.h/2 - res->stickTexture->getHeight() / 2);
+    float alpha = 0.0f;
+    
+    if (elapsedTicks < 350) alpha = 0.4f;                                                   // 0,4
+    else if (elapsedTicks < 4000) alpha = 0.4f - (float) (elapsedTicks-350) / 20000.0f;     // 0,4..0,2
+    else alpha = 0.2f - (float) (elapsedTicks-4000) / 5000.0f;                              // 0,2..0
+    if (alpha < 0.0f) alpha = 0.0f;
+
+    glColor4f(1.0f, 1.0f, 1.0f, alpha);
+    renderer->drawTexture(res->stickTexture, x, y);
+    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
 uint8 VirtualJoystick::getState()
@@ -116,13 +143,17 @@ void VirtualJoystick::update()
         return;
     }
 
+    uint32 currentTicks = SDL_GetTicks();
+
     int leftArea = windowRect.w/2;
+    int borderTop = toolbarHeight;
+    int borderBottom = toolbarHeight;
 
 	int mouseX = 0;
 	int mouseY = 0;
 	int mouseButtons = SDL_GetMouseState(&mouseX, &mouseY);
 
-    if (mouseY <= windowRect.y || mouseY >= windowRect.y + windowRect.h)
+    if (mouseButtons != 0 && (mouseY <= windowRect.y + borderTop || mouseY >= windowRect.y + windowRect.h - borderBottom))
     {
         // toolbar area
         mouseButtons = 0;
@@ -133,7 +164,7 @@ void VirtualJoystick::update()
 
     #ifdef WEBOS
         int mouseButtons2 = SDL_GetMultiMouseState(1, &mouseX2, &mouseY2);
-        if (mouseY2 <= windowRect.y || mouseY2 >= windowRect.y+windowRect.h)
+        if (mouseY2 <= windowRect.y + borderTop || mouseY2 >= windowRect.y+windowRect.h - borderBottom)
         {
             mouseButtons2 = 0;
         }
@@ -203,6 +234,10 @@ void VirtualJoystick::update()
 
     state = newState;
 
+    if (state != 0xff)
+    {
+        lastActivity = currentTicks;
+    }
 }
 
 void VirtualJoystick::keyInput(int key, bool press)
