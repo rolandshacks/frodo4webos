@@ -123,11 +123,17 @@ void OSD::show(bool doShow)
 
         if (visible)
         {
+            the_c64->Pause();
+
             movement = 0.0f;
             controlDir = 0;
 
             pos = renderer->getWidth();
             update();
+        }
+        else
+        {
+            the_c64->Resume();
         }
     }
 }
@@ -241,6 +247,7 @@ void OSD::drawFiles(resource_list_t* res)
     int itemHeight = layout.rowHeight;
 
     scrollPixelRange = fileList.size() * layout.rowHeight - fileListFrame.h;
+    if (scrollPixelRange < 0) scrollPixelRange = 0;
 
     int rowFontOffsetY = (itemHeight - renderer->getFont()->getHeight()) / 2;
 
@@ -251,7 +258,7 @@ void OSD::drawFiles(resource_list_t* res)
         scrollPixelOffset = (float) (scrollPixelRange - 1);
         movement = 0.0f;
     }
-    else if (scrollPixelOffset < 0.0f)
+    if (scrollPixelOffset < 0.0f)
     {
         scrollPixelOffset = 0.0f;
         movement = 0.0f;
@@ -427,7 +434,7 @@ void OSD::update()
 
 OSD::fileinfo_t OSD::getCachedFileInfo(int idx)
 {
-    if (idx >= 0 || idx < fileList.size())
+    if (idx >= 0 && idx < fileList.size())
     {
         vector<fileinfo_t>::const_iterator it = fileList.begin() + idx;
         if (it != fileList.end()) return *it;
@@ -488,7 +495,7 @@ void OSD::handleKeyEvent(int key, int sym, int eventType)
 
     if (key == SDLK_ESCAPE)
     {
-        visible = false;
+        show(false);
     }
     else if (key == SDLK_UP)
     {
@@ -512,7 +519,7 @@ bool OSD::onClick(int x, int y)
         int idx = (oscY + (int) scrollPixelOffset) / layout.rowHeight;
 
         fileinfo_t fileInfo = getCachedFileInfo(idx);
-        if (!fileInfo.name.empty())
+        if (idx >= 0 && idx < fileList.size() && !fileInfo.name.empty())
         {
             if (idx > 0 && fileInfo.isDirectory)
             {
@@ -545,10 +552,9 @@ bool OSD::onClick(int x, int y)
             else
             {
                 setNewFile(fileInfo);
+                show(false);
             }
         }
-
-        visible = false;
     }
     else if (x >= toolbarRect.x && x < toolbarRect.x+toolbarRect.w &&
              y >= toolbarRect.y && y < toolbarRect.y+toolbarRect.h) 
@@ -561,13 +567,12 @@ bool OSD::onClick(int x, int y)
             if (it != commandList.end())
             {
                 onCommand(*it);
-                //visible = false;
             }
         }
     }
     else
     {
-        visible = false;
+        show(false);
     }
 
     return true;

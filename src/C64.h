@@ -61,6 +61,7 @@ class C64 {
 	    bool LoadVICState(FILE *f);
 	    bool LoadSIDState(FILE *f);
 	    bool LoadCIAState(FILE *f);
+        bool isPaused();
 
         int ShowRequester(const char* text, const char* button1=NULL, const char* button2=NULL);
         void soundSync();

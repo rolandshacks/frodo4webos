@@ -176,7 +176,10 @@ bool C64::init()
 
 void C64::doStep()
 {
-	emulationStep();
+    if (!have_a_break)
+    {
+	    emulationStep();
+    }
 }
 
 void C64::shutdown()
@@ -833,6 +836,10 @@ void C64::Pause()
 	state_change = true;
 }
 
+bool C64::isPaused()
+{
+    return have_a_break;
+}
 
 /*
  *  Resume emulation

@@ -1276,10 +1276,14 @@ void DigitalRenderer::Pause()
 {
 	if (!ready)
 		return;
+
+    SDL_PauseAudio(1);
 }
 
 void DigitalRenderer::Resume()
 {
 	if (!ready)
 		return;
+
+    SDL_PauseAudio(0);
 }

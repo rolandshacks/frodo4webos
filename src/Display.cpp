@@ -324,7 +324,7 @@ void C64Display::Update()
 
 void C64Display::redraw()
 {
-    if (!invalidated && limitFramerate)
+    if (!invalidated && !TheC64->isPaused() && limitFramerate)
     {
         return;
     }
