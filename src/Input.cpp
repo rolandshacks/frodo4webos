@@ -375,6 +375,8 @@ void C64Input::handleMouseEvent(int x, int y, int eventType)
                 {
                     toggleVirtualKeyboard();
                 }
+
+                TheDisplay->setStatusMessage("Quick Start");
             }
             else
             {

@@ -141,6 +141,8 @@ class OSD : public InputHandler
         void pushKeyPress(int key);
         void drawFiles(resource_list_t* res);
         void drawToolbar(resource_list_t* res);
+        bool insideFileList(int x, int y);
+        std::string getLimitedPath(const std::string& path);
 
     private:
         int scrollElementTop;

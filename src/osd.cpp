@@ -202,9 +202,11 @@ void OSD::draw(float elapsedTime, resource_list_t* res)
                                windowRect.x, windowRect.y,
                                windowRect.w+res->backgroundTexture->getWidth()/2.0f, windowRect.h);
 
+    // draw title
+    string dispDirectory = getLimitedPath(currentDirectory);
     renderer->setFont(res->fontSmall);
     renderer->drawText(titleRect.x + 10, titleRect.y + titleRect.h/2,
-                       currentDirectory.c_str(),
+                       dispDirectory.c_str(),
                        Renderer::ALIGN_MIDDLE);
 
     renderer->enableClipping(fileListFrame.x, fileListFrame.y,
@@ -456,7 +458,11 @@ void OSD::handleMouseEvent(int x, int y, int eventType)
 
     if (InputHandler::EVENT_Down == eventType) // mouse down
     {
-        mousePressed = true;
+        if (insideFileList(x, y))
+        {
+            mousePressed = true;
+        }
+
         mouseGesture = false;
         mousePressPosX = mouseX;
         mousePressPosY = mouseY;
@@ -475,7 +481,7 @@ void OSD::handleMouseEvent(int x, int y, int eventType)
     }
     else if (InputHandler::EVENT_Move == eventType)
     {
-        if (mousePressed)
+        if (mousePressed && insideFileList(x, y))
         {
             movement = - (float) mouseDeltaY * 4.0f;
             if (!mouseGesture && (abs(mousePressPosX - mouseX) > 5 || abs(mousePressPosY - mouseY) > 5))
@@ -507,12 +513,22 @@ void OSD::handleKeyEvent(int key, int sym, int eventType)
     }
 }
 
+bool OSD::insideFileList(int x, int y)
+{
+    if (x >= fileListFrame.x && x < fileListFrame.x+fileListFrame.w &&
+        y >= fileListFrame.y && y < fileListFrame.y+fileListFrame.h) 
+    {
+        return true;
+    }
+
+    return false;
+}
+
 bool OSD::onClick(int x, int y)
 {
     if (!visible || !layout.valid) return false;
 
-    if (x >= fileListFrame.x && x < fileListFrame.x+fileListFrame.w &&
-        y >= fileListFrame.y && y < fileListFrame.y+fileListFrame.h) 
+    if (insideFileList(x, y)) 
     {
 
         int oscY = y - fileListFrame.y;
@@ -736,4 +752,49 @@ void OSD::updateCommandState(command_t& command)
 void OSD::pushKeyPress(int key)
 {
     the_c64->TheInput->pushKeyPress(key);
+}
+
+std::string OSD::getLimitedPath(const std::string& path)
+{
+    int maxLen = maxFilenameLen;
+
+    if (path.length() <= maxLen) return path;
+
+    int charsLeft = maxLen;
+
+    int rpos = path.length(); 
+    int pos = rpos;
+    int newPos;
+
+    while (pos != string::npos && pos > 0)
+    {
+        newPos = path.rfind(NATIVE_SLASH, pos-1);
+
+        if (newPos == string::npos)
+        {
+            newPos = 0;
+        }
+
+        if (rpos-newPos > maxLen && newPos < rpos)
+        {
+            break;
+        }
+
+        pos = newPos;
+
+    }
+
+    if (pos <= 0)
+    {
+        return path;
+    }
+
+    pos += 1;
+
+    string shortPath = path.substr(pos);
+    string limitedPath = "...";
+    limitedPath.append(1, NATIVE_SLASH);
+    limitedPath.append(shortPath);
+
+    return limitedPath;
 }
