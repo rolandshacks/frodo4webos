@@ -1,5 +1,9 @@
 /* Src/sysconfig.h */
 
+#ifndef WINDOWS
+#define WINDOWS
+#endif
+
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS 1
 #endif

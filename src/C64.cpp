@@ -74,6 +74,7 @@ bool C64::init()
 	// The thread is not yet running
 	quit_thyself = false;
 	have_a_break = false;
+    paused       = false;
 
 	// Initialize joystick variables.
 	joy_state = 0xff;
@@ -176,7 +177,7 @@ bool C64::init()
 
 void C64::doStep()
 {
-    if (!have_a_break)
+    if (!paused)
     {
 	    emulationStep();
     }
@@ -580,7 +581,7 @@ bool C64::Load1541JobState(FILE *f)
  *  snapshot is loaded into FrodoSC again.
  */
 
-void C64::SaveSnapshot(char *filename)
+void C64::SaveSnapshot(const char *filename)
 {
 	FILE *f;
 	uint8 flags;
@@ -643,7 +644,7 @@ void C64::SaveSnapshot(char *filename)
  *  Load snapshot (emulation must be paused and in VBlank)
  */
 
-bool C64::LoadSnapshot(char *filename)
+bool C64::LoadSnapshot(const char *filename)
 {
 	FILE *f;
 
@@ -849,6 +850,7 @@ void C64::Resume()
 {
 	TheSID->ResumeSound();
 	have_a_break = false;
+    paused = false;
 }
 
 /*
@@ -884,6 +886,7 @@ void C64::VBlank(bool draw_frame)
 
 	if (have_a_break)
     {
+        paused = true;
 		return;
     }
 

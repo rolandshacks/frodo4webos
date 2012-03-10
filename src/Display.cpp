@@ -27,8 +27,6 @@ static bool swapBuffers = true;
 
 int initialWidth = 1024;
 int initialHeight = 768;
-//int initialWidth = 350;
-//int initialHeight = 250;
 int bitsPerPixel = 8;
 int zoom_factor = 1;
 
@@ -54,7 +52,6 @@ static SDL_Surface *physicalScreen = NULL;
 // For LED error blinking
 static C64Display *c64_disp;
 static Uint32 lastLEDUpdate = 0;
-
 
 // LED states
 enum {
@@ -141,6 +138,7 @@ C64Display::C64Display(C64 *the_c64) : TheC64(the_c64)
     // opengl renderer
     renderer = NULL;
     lastDrawTime = 0;
+    antialiasing = false;
 
     memset(&res, 0, sizeof(res));
     res.initialized = false;
@@ -288,6 +286,20 @@ bool C64Display::init()
     return true;
 }
 
+void C64Display::setAntialiasing(bool antialiasing)
+{
+    this->antialiasing = antialiasing;
+
+    if (NULL != res.screenTexture)
+    {
+        res.screenTexture->setAntialias(antialiasing);
+    }
+}
+
+bool C64Display::getAntialiasing() const
+{
+    return antialiasing;
+}
 
 /*
  *  Prefs may have changed
@@ -354,6 +366,8 @@ void C64Display::redraw()
 void C64Display::doInitGL()
 {
     res.screenTexture           = new Texture(bufferWidth, bufferHeight, 32);
+    res.screenTexture->setAntialias(antialiasing);
+
     res.backgroundTexture       = new Texture(RES_BACKGROUND);
     res.buttonTexture           = new Texture(RES_BUTTON);
     res.buttonPressedTexture    = new Texture(RES_BUTTON_PRESSED);
@@ -367,7 +381,7 @@ void C64Display::doInitGL()
     res.iconClose               = new Texture(RES_ICON_CLOSE);
 
     res.fontTiny                = new Font(RES_FONT, 12.0f);
-    res.fontSmall               = new Font(RES_FONT, 14.0f);
+    res.fontSmall               = new Font(RES_FONT, 15.0f);
     res.fontNormal              = new Font(RES_FONT, 18.0f);
     res.fontLarge               = new Font(RES_FONT, 28.0f);
 
@@ -777,6 +791,13 @@ void C64Display::resize(int w, int h)
 
 void C64Display::openOsd()
 {
+    #ifdef WEBOS
+        if (TheC64->TheInput->isVirtualKeyboardEnabled())
+        {
+            TheC64->TheInput->toggleVirtualKeyboard();
+        }
+    #endif
+
     osd->show(true);
     invalidateBackground();
 }

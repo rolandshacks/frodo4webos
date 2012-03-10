@@ -1,5 +1,9 @@
 /* sysconfig.h.in.  Generated from configure.in by autoheader.  */
 
+#ifndef POSIX
+#define POSIX
+#endif
+
 /* Define if you have the <dirent.h> header file, and it defines `DIR'. */
 #define HAVE_DIRENT_H 1
 

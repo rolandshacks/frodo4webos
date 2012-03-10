@@ -20,8 +20,10 @@ extern "C"
         #include <GLES/gl.h>
         #define HAVE_GLES
     #else
-        #include <windows.h>
-        #include <gl/GL.h>
+        #ifdef WINDOWS
+            #include <windows.h>
+		#endif
+        #include <GL/gl.h>
     #endif
 
     #ifndef GL_BGR

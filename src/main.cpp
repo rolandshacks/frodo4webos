@@ -48,7 +48,8 @@ bool Frodo::initialize(int argc, char **argv)
 	getcwd(AppDirPath, 256);
 
 	// Load preferences
-	if (!prefs_path[0]) {
+	if (!prefs_path[0])
+	{
 		char *home = getenv("HOME");
 		if (home != NULL && strlen(home) < 240) {
 			strncpy(prefs_path, home, 200);
@@ -317,7 +318,8 @@ void Frodo::handleEvent(SDL_Event* event)
 int main(int argc, char **argv)
 {
 	// Init SDL
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK ) < 0) {
+	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK ) < 0)
+	{
 		fprintf(stderr, "Couldn't initialize SDL (%s)\n", SDL_GetError());
 		return 0;
 	}

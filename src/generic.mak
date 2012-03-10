@@ -18,7 +18,7 @@ else
   BUILD_PLATFORM = LINUX
   NATIVE_SLASH = /
 endif
-  
+
 ifeq ($(PLATFORM),)
   PLATFORM = PALM
 endif
@@ -64,6 +64,7 @@ ifeq ($(PALMPDK),)
         PALMPDK = C:\Tools\webOS\PDK
     else
         PALMPDK = /opt/PalmPDK
+        ARMGCCDIR = $(PALMPDK)/arm-gcc/bin
     endif
 endif
 endif
@@ -84,15 +85,22 @@ ifeq ($(PLATFORM),PALM)
   ifeq ($(EMULATOR),1)
     CC          = i686-pc-linux-gnu-gcc
     AR          = i686-pc-linux-gnueabi-ar
-    STDLIBDIRS  = $(PALMPDK)\emulator\lib
-    STDINCDIRS  = $(PALMPDK)\include $(PALMPDK)\include\SDL
+    STDLIBDIRS  = $(PALMPDK)/emulator\lib
+    STDINCDIRS  = $(PALMPDK)/include $(PALMPDK)/include\SDL
     STDLIBS     = m rt SDL SDL_ttf SDL_image GLES_CM pdl
   else
-    CC          = arm-none-linux-gnueabi-gcc
-    AR          = arm-none-linux-gnueabi-ar
-    CC_STRIP    = arm-none-linux-gnueabi-strip -g -S -d --strip-debug
-    STDLIBDIRS  = $(PALMPDK)\device\lib
-    STDINCDIRS  = $(PALMPDK)\include $(PALMPDK)\include\SDL
+    ifneq ($(ARMGCCDIR),)
+      CC          = $(ARMGCCDIR)/arm-none-linux-gnueabi-gcc
+      AR          = $(ARMGCCDIR)/arm-none-linux-gnueabi-ar
+      STRIP       = $(ARMGCCDIR)/arm-none-linux-gnueabi-strip
+    else
+      CC          = arm-none-linux-gnueabi-gcc
+      AR          = arm-none-linux-gnueabi-ar
+      STRIP       = arm-none-linux-gnueabi-strip
+    endif
+    CC_STRIP    = $(STRIP) -g -S -d --strip-debug
+    STDLIBDIRS  = $(PALMPDK)/device/lib
+    STDINCDIRS  = $(PALMPDK)/include $(PALMPDK)/include/SDL
     STDLIBS     = m rt SDL SDL_ttf SDL_image GLES_CM pdl
   endif
 else

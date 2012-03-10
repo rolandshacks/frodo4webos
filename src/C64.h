@@ -47,8 +47,8 @@ class C64 {
 	    void NewPrefs(Prefs *prefs);
 	    void PatchKernal(bool fast_reset, bool emul_1541_proc);
 	    void SaveRAM(char *filename);
-	    void SaveSnapshot(char *filename);
-	    bool LoadSnapshot(char *filename);
+	    void SaveSnapshot(const char *filename);
+	    bool LoadSnapshot(const char *filename);
 	    int SaveCPUState(FILE *f);
 	    int Save1541State(FILE *f);
 	    bool Save1541JobState(FILE *f);
@@ -93,6 +93,7 @@ class C64 {
 
 	    bool quit_thyself;		// Emulation thread shall quit
 	    bool have_a_break;		// Emulation thread shall pause
+        bool paused;            // Emulation thread paused
 
 	    int joy_minx, joy_maxx, joy_miny, joy_maxy; // For dynamic joystick calibration
 

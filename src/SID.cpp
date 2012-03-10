@@ -1237,17 +1237,18 @@ void DigitalRenderer::init_sound()
 {
     ready = false;
 
-    format.freq = SAMPLE_FREQ;
-    format.format = AUDIO_S16;
-    format.channels = 2;
+    format.freq      = SAMPLE_FREQ;
+    format.format    = AUDIO_S16;
+    format.channels  = 2;
 
-    int numSamples = SAMPLE_FREQ / CALC_FREQ;
+    int numSamples  = SAMPLE_FREQ / CALC_FREQ;
 
-    format.samples = numSamples;
+    format.samples  = numSamples;
     format.callback = ::audioCallback;
     format.userdata = this;
 
-    if ( SDL_OpenAudio(&format, NULL) < 0 ) {
+    if ( SDL_OpenAudio(&format, NULL) < 0 )
+    {
         fprintf(stderr, "Unable to open sound device: %s\n", SDL_GetError());
     }
 

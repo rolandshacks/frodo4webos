@@ -216,8 +216,16 @@ void Texture::bind()
 {
     glBindTexture(GL_TEXTURE_2D, textureId);
 
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    if (filtering)
+    {
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    }
+    else
+    {
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    }
 
     enablePalette();
 
@@ -228,6 +236,16 @@ void Texture::unbind()
     glBindTexture(GL_TEXTURE_2D, 0);
 
     disablePalette();
+}
+
+void Texture::setAntialias(bool enabled)
+{
+    filtering = enabled;
+}
+
+bool Texture::isAntialiased() const
+{
+    return filtering;
 }
 
 void Texture::enablePalette()

@@ -52,11 +52,11 @@ void OSD::init()
     fileListFrame.x = fileListFrame.y = fileListFrame.w = fileListFrame.h = 0;
     toolbarRect.x = toolbarRect.y = toolbarRect.w = toolbarRect.h = 0;
 
-    commandList.push_back( command_t ( CMD_ENABLE_JOYSTICK1, "JOY1", "Enable Joystick 1" ) );
-    commandList.push_back( command_t ( CMD_ENABLE_JOYSTICK2, "JOY2", "Enable Joystick 2" ) );
-    commandList.push_back( command_t ( CMD_ENABLE_TRUEDRIVE, "DRV", "Toggle 1541 Drive Emulation" ) );
-    commandList.push_back( command_t ( CMD_WARP, "WARP", "Toggle Warp Mode" ) );
-    commandList.push_back( command_t ( CMD_RESET, "RESET", "Reset" ) );
+    commandList.push_back( command_t ( CMD_WARP, "Warp Mode", "Toggle Warp Mode", false ) );
+    commandList.push_back( command_t ( CMD_ENABLE_JOYSTICK1, "Joystick 1", "Enable Joystick 1", false ) );
+    commandList.push_back( command_t ( CMD_ENABLE_JOYSTICK2, "Joystick 2", "Enable Joystick 2", false ) );
+    commandList.push_back( command_t ( CMD_ENABLE_TRUEDRIVE, "True Drive", "Toggle 1541 Drive Emulation", false ) );
+    commandList.push_back( command_t ( CMD_ENABLE_FILTERING, "Filtering", "Toggle Display Antialiasing", false ) );
 
     commandList.push_back( command_t ( CMD_KEY_F1, "F1", "F1 Key" ) );
     commandList.push_back( command_t ( CMD_KEY_F2, "F2", "F2 Key" ) );
@@ -67,7 +67,10 @@ void OSD::init()
     commandList.push_back( command_t ( CMD_KEY_F7, "F7", "F7 Key" ) );
     commandList.push_back( command_t ( CMD_KEY_F8, "F8", "F8 Key" ) );
 
-    commandList.push_back( command_t ( CMD_SHOW_ABOUT, "HELP", "Show Help" ) );
+
+    commandList.push_back( command_t ( CMD_SAVE_SNAPSHOT, "Snapshot", "Save Snapshot" ) );
+    commandList.push_back( command_t ( CMD_RESET, "Reset", "Reset" ) );
+    commandList.push_back( command_t ( CMD_SHOW_ABOUT, "Help", "Show Help", false ) );
 
     scrollElementTop = scrollPixelRange = 0;
     scrollPixelOffset = 0.0f;
@@ -86,7 +89,7 @@ void OSD::create(Renderer* renderer, C64* the_c64, C64Display* display)
     this->the_c64 = the_c64;
     this->display = display;
 
-    buttonWidth = 60;
+    buttonWidth = 80;
 
     char nameBuffer[512];
 
@@ -148,10 +151,11 @@ void OSD::updateLayout(int w, int h, float elapsedTime, resource_list_t* res)
     int borderX=5;
     int borderY=5;
 
-    layout.rowHeight    = res->buttonTexture->getHeight();
     layout.width        = renderer->getWidth()-(DISPLAY_X-44)*2; //350;
     layout.height       = renderer->getHeight();
-    layout.titleHeight  = 30;
+    layout.titleHeight  = 44;
+    layout.itemHeight   = 52;
+    layout.buttonHeight = res->buttonTexture->getHeight();
 
     if (pos > renderer->getWidth()-layout.width)
     {
@@ -246,9 +250,9 @@ void OSD::drawFiles(resource_list_t* res)
 
     SDL_Rect entryRect;
 
-    int itemHeight = layout.rowHeight;
+    int itemHeight = layout.itemHeight;
 
-    scrollPixelRange = fileList.size() * layout.rowHeight - fileListFrame.h;
+    scrollPixelRange = fileList.size() * itemHeight - fileListFrame.h;
     if (scrollPixelRange < 0) scrollPixelRange = 0;
 
     int rowFontOffsetY = (itemHeight - renderer->getFont()->getHeight()) / 2;
@@ -376,7 +380,7 @@ void OSD::update()
     parentInfo.isDirectory = true;
     fileList.push_back(parentInfo);
 
-	DIR* dir = opendir (currentDirectory.c_str());
+	DIR* dir = opendir(currentDirectory.c_str());
 	if (NULL != dir) 
     {
 
@@ -397,7 +401,9 @@ void OSD::update()
                     string extension = filename.substr(extPos+1);
                     std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
 
-                    if (extension == "d64" || extension == "t64" /* || extension == "prg" */)
+                    if (extension == "snap" || 
+                        extension == "d64" || 
+                        extension == "t64" /* || extension == "prg" */)
                     {
                         fileinfo_t fileInfo;
                         fileInfo.name = filename;
@@ -530,9 +536,8 @@ bool OSD::onClick(int x, int y)
 
     if (insideFileList(x, y)) 
     {
-
         int oscY = y - fileListFrame.y;
-        int idx = (oscY + (int) scrollPixelOffset) / layout.rowHeight;
+        int idx = (oscY + (int) scrollPixelOffset) / layout.itemHeight;
 
         fileinfo_t fileInfo = getCachedFileInfo(idx);
         if (idx >= 0 && idx < fileList.size() && !fileInfo.name.empty())
@@ -618,6 +623,9 @@ void OSD::onCommand(const OSD::command_t& command)
             prefs->Emul1541Proc = !prefs->Emul1541Proc;
             prefsChanged = true;
             break;
+        case CMD_ENABLE_FILTERING:
+            the_c64->TheDisplay->setAntialiasing(!the_c64->TheDisplay->getAntialiasing());
+            break;
         case CMD_WARP:
             prefs->LimitSpeed = !prefs->LimitSpeed;
             prefsChanged = true;
@@ -649,6 +657,16 @@ void OSD::onCommand(const OSD::command_t& command)
         case CMD_KEY_F8:
             pushKeyPress(289);
             break;
+        case CMD_SAVE_SNAPSHOT:
+        {
+            string snapshotFile = currentDirectory + NATIVE_SLASH + "c64-" + getDateString() + ".snap";
+            the_c64->SaveSnapshot(snapshotFile.c_str());
+            update();
+            break;
+        }
+        case CMD_LOAD_SNAPSHOT:
+            the_c64->LoadSnapshot("snapshot.snap");
+            break;
         case CMD_SHOW_ABOUT:
             display->showAbout(!display->isAboutActive());
             break;
@@ -660,6 +678,11 @@ void OSD::onCommand(const OSD::command_t& command)
     if (commandDispatched)
     {
         the_c64->TheDisplay->setStatusMessage(command.description);
+
+        if (command.autoClose)
+        {
+            show(false);
+        }
     }
 
     if (prefsChanged)
@@ -681,15 +704,25 @@ void OSD::setNewFile(const fileinfo_t& fileInfo)
 
     diskPath.append(fileInfo.name);
 
-	Prefs *prefs = new Prefs(ThePrefs);
-
-    strcpy(prefs->DrivePath[0], diskPath.c_str());
+    string extension = "";
 
     int extPos = diskPath.rfind('.');
     if (extPos > 0)
     {
-        string extension = diskPath.substr(extPos+1);
+        extension = diskPath.substr(extPos+1);
         std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+    }
+
+    if (extension == "snap")
+    {
+        the_c64->LoadSnapshot(diskPath.c_str());
+        the_c64->TheDisplay->setStatusMessage("Loaded snapshot: " + fileInfo.name);
+    }
+    else
+    {
+	    Prefs *prefs = new Prefs(ThePrefs);
+
+        strcpy(prefs->DrivePath[0], diskPath.c_str());
 
         int driveType = DRVTYPE_DIR;
         if (extension == "prg")
@@ -713,15 +746,13 @@ void OSD::setNewFile(const fileinfo_t& fileInfo)
         }
 
         prefs->DriveType[0] = driveType;
-	}
 
-	the_c64->NewPrefs(prefs);
-	ThePrefs = *prefs;
-	delete prefs;
+	    the_c64->NewPrefs(prefs);
+	    ThePrefs = *prefs;
+	    delete prefs;
 
-    the_c64->TheDisplay->setStatusMessage("Inserted disk: " + fileInfo.name);
-
-    //the_c64->Reset();
+        the_c64->TheDisplay->setStatusMessage("Inserted disk: " + fileInfo.name);
+    }
 }
 
 void OSD::updateCommandState(command_t& command)
@@ -737,6 +768,9 @@ void OSD::updateCommandState(command_t& command)
             break;
         case CMD_ENABLE_TRUEDRIVE:
             command.state = ThePrefs.Emul1541Proc ? STATE_SET : STATE_NORMAL;
+            break;
+        case CMD_ENABLE_FILTERING:
+            command.state = the_c64->TheDisplay->getAntialiasing() ? STATE_SET : STATE_NORMAL;
             break;
         case CMD_WARP:
             command.state = ThePrefs.LimitSpeed ? STATE_NORMAL : STATE_SET;
@@ -797,4 +831,38 @@ std::string OSD::getLimitedPath(const std::string& path)
     limitedPath.append(shortPath);
 
     return limitedPath;
+}
+
+std::string OSD::getDateString()
+{
+    int year, month, day, hour, minute;
+
+    #ifdef WINDOWS
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+
+        year          = (int) st.wYear;
+        month         = (int) st.wMonth;
+        day           = (int) st.wDay;
+        hour          = (int) st.wHour;
+        minute        = (int) st.wMinute;
+
+    #else
+
+        time_t ut = time(NULL);
+        struct tm* st = localtime(&ut);
+
+        year          = (int) st->tm_year + 1900;
+        month         = (int) st->tm_mon + 1;
+        day           = (int) st->tm_mday;
+        hour          = (int) st->tm_hour;
+        minute        = (int) st->tm_min;
+
+    #endif
+
+    char buffer[128];
+    sprintf(buffer, "%04d%02d%02d-%02d%02d",
+            year, month, day, hour, minute);
+
+    return string(buffer);
 }

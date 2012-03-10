@@ -43,7 +43,8 @@ class OSD : public InputHandler
             int     height;
             int     titleHeight;
 
-            int     rowHeight;
+            int     buttonHeight;
+            int     itemHeight;
 
         } layout_t;
 
@@ -71,6 +72,7 @@ class OSD : public InputHandler
             CMD_ENABLE_JOYSTICK1,
             CMD_ENABLE_JOYSTICK2,
             CMD_ENABLE_TRUEDRIVE,
+            CMD_ENABLE_FILTERING,
             CMD_RESET,
             CMD_WARP,
             CMD_KEY_F1,
@@ -81,6 +83,8 @@ class OSD : public InputHandler
             CMD_KEY_F6,
             CMD_KEY_F7,
             CMD_KEY_F8,
+            CMD_SAVE_SNAPSHOT,
+            CMD_LOAD_SNAPSHOT,
             CMD_SHOW_ABOUT
         } commandid_t;
 
@@ -96,13 +100,15 @@ class OSD : public InputHandler
             std::string text;
             std::string description;
             int state;
+            bool autoClose;
 
-            command_type(int id, const std::string& text, const std::string& description)
+            command_type(int id, const std::string& text, const std::string& description, bool autoClose=true)
             {
                 this->id = id;
                 this->text = text;
                 this->description = description;
                 this->state = STATE_NORMAL;
+                this->autoClose = autoClose;
             }
 
         } command_t;
@@ -148,6 +154,7 @@ class OSD : public InputHandler
         int scrollElementTop;
         int scrollPixelRange;
         float scrollPixelOffset;
+        std::string getDateString();
 };
 
 #endif /* _OSD_H */

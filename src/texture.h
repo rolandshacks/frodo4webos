@@ -49,6 +49,8 @@ class Texture
         void* getBuffer();
         void updateData(const void* pixels);
         void updateData(const void* pixels, int bitsPerPixel, uint32* palette);
+        void setAntialias(bool enabled=true);
+        bool isAntialiased() const;
 
     public:
         int getWidth() const;

@@ -75,6 +75,7 @@ class C64Display
 	    char speedometer_string[16];		// Speedometer text
         int framesPerSecond;
         int frameCounter;
+        bool antialiasing;
 
     public:
 	    C64Display(C64 *the_c64);
@@ -95,6 +96,9 @@ class C64Display
 	    int BitmapXMod(void);
 	    void InitColors(uint8 *colors);
 	    void NewPrefs(Prefs *prefs);
+
+        void setAntialiasing(bool antialiasing);
+        bool getAntialiasing() const;
 
     public:
         int getWidth();
