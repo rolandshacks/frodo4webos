@@ -13,7 +13,7 @@
 #define INPUT_UP		0x4
 #define INPUT_DOWN		0x8
 
-class VirtualJoystick
+class VirtualJoystick : public InputHandler
 {
     public:
         typedef enum
@@ -24,6 +24,7 @@ class VirtualJoystick
         } stickmode_t;
 
     private:
+	    C64 *TheC64;
         bool visible;
         int mode;
 
@@ -32,30 +33,36 @@ class VirtualJoystick
         int deadZoneWidth;
         int deadZoneHeight;
 
+        int stickBits;
         uint8 state;
         uint32 lastActivity;
 
     public:
-        VirtualJoystick();
+        VirtualJoystick(C64 *the_c64);
         virtual ~VirtualJoystick();
         int getMode() const;
         void setMode(int mode);
         void update();
         uint8 getState();
-        void keyInput(int key, bool press);
+
+    public: // implements InputHandler
+        void handleMouseEvent(int x, int y, int eventType);
+        void handleKeyEvent(int key, int mod, int eventType);
 
     public:
         void create();
         void show(bool doShow);
         bool isShown();
         void draw(Renderer* renderer, resource_list_t* res);
-        int updateState(int buttons, int x, int y);
+        //int updateState(int buttons, int x, int y);
         void keyInput(int key);
 
     private:
         void init();
         void cleanup();
         void layout(int x, int y, int w, int h);
+        int getStickState(int mouseButtons, int mouseX, int mouseY,
+                          int mouseButtons2, int mouseX2, int mouseY2);
 
 };
 

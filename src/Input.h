@@ -36,7 +36,7 @@ class C64Input : public InputHandler
 
     public: // implements InputHandler
         void handleMouseEvent(int x, int y, int eventType);
-        void handleKeyEvent(int key, int sym, int eventType);
+        void handleKeyEvent(int key, int mod, int eventType);
 
     public:
         void pushKey(int key);

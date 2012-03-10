@@ -45,6 +45,7 @@ OSD::~OSD()
 void OSD::init()
 {
     visible = false;
+    justOpened = true;
 
     pos = 0.0f;
 
@@ -130,6 +131,7 @@ void OSD::show(bool doShow)
 
             movement = 0.0f;
             controlDir = 0;
+            justOpened = true;
 
             pos = renderer->getWidth();
             update();
@@ -476,9 +478,16 @@ void OSD::handleMouseEvent(int x, int y, int eventType)
     }
     else if (InputHandler::EVENT_Up == eventType)
     {
-        if (!mouseGesture)
+        if (!justOpened)
         {
-            onClick(x, y);
+            if (!mouseGesture)
+            {
+                onClick(x, y);
+            }
+        }
+        else
+        {
+            justOpened = false;
         }
 
         mousePressed = false;

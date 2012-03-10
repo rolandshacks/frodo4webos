@@ -17,6 +17,7 @@
 extern int toolbarHeight;
 extern int toolbarWidgetWidth;
 
+
 /*
   C64 keyboard matrix:
 
@@ -45,7 +46,6 @@ int SEQUENCE_LOADPGM[] = { 273, -273, 273, -273, 273, -273, 108, -108, 111, -111
  , 275, -275, 275, -275, 275, -275, 275, -275, 275, -275, 44, -44, 56, -56, 44, -44, 49, -49, 13, -13 };
 int SEQUENCE_RUN[] = { 114, -114, 117, -117, 110, -110, 13, -13 };
 int SEQUENCE_LOADFIRST[] = { 108, -108, 111, -111, 97, 100, -97, -100, 32, -32, 304, 50, -50, -304, 93, -93, 304, 50, -50, -304, 44, -44, 56, -56, 44, -44, 49, -49, 13, -13 };
-
 
 #define MATRIX(a,b) (((a) << 3) | (b))
 
@@ -138,7 +138,7 @@ void C64Input::translateKey(SDLKey key,
 {
 	int c64_key = -1;
 
-    //printf("KEY: %d\n", key);
+    //printf("KEY: %d 0x%x\n", key, key);
 
 	switch (key) 
     {
@@ -358,7 +358,7 @@ void C64Input::handleMouseEvent(int x, int y, int eventType)
 {
     TheDisplay->closeAbout();
 
-    if (InputHandler::EVENT_Up == eventType)
+    if (InputHandler::EVENT_Down == eventType)
     {
         if (y < toolbarHeight)
         {

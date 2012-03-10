@@ -132,7 +132,7 @@ bool C64::init()
 
     joystick1 = joystick2 = NULL;
 
-    TheJoystick = new VirtualJoystick();
+    TheJoystick = new VirtualJoystick(this);
     #ifdef WEBOS
         TheJoystick->setMode(VirtualJoystick::MODE_MOUSE);
     #else

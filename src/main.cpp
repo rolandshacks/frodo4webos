@@ -183,18 +183,36 @@ void Frodo::handleEvent(SDL_Event* event)
         {
             SDL_MouseButtonEvent* e = &event->button;
             inputHandler->handleMouseEvent(e->x, e->y, InputHandler::EVENT_Down);
+
+            if (TheC64->TheJoystick->getMode() == VirtualJoystick::MODE_MOUSE)
+            {
+                TheC64->TheJoystick->handleMouseEvent(e->x, e->y, InputHandler::EVENT_Down);
+            }
+
             break;
         }
         case SDL_MOUSEBUTTONUP:
         {
             SDL_MouseButtonEvent* e = &event->button;
             inputHandler->handleMouseEvent(e->x, e->y, InputHandler::EVENT_Up);
+
+            if (TheC64->TheJoystick->getMode() == VirtualJoystick::MODE_MOUSE)
+            {
+                TheC64->TheJoystick->handleMouseEvent(e->x, e->y, InputHandler::EVENT_Up);
+            }
+
             break;
         }
         case SDL_MOUSEMOTION:
         {
             SDL_MouseMotionEvent* e = &event->motion;
             inputHandler->handleMouseEvent(e->x, e->y, InputHandler::EVENT_Move);
+
+            if (TheC64->TheJoystick->getMode() == VirtualJoystick::MODE_MOUSE)
+            {
+                TheC64->TheJoystick->handleMouseEvent(e->x, e->y, InputHandler::EVENT_Move);
+            }
+
             break;
         }
         case SDL_KEYDOWN:
@@ -215,7 +233,7 @@ void Frodo::handleEvent(SDL_Event* event)
                     key == SDLK_DOWN ||
                     key == SDLK_LCTRL))
                 {
-                    TheC64->TheJoystick->keyInput(key, true);
+                    TheC64->TheJoystick->handleKeyEvent(key, mod, InputHandler::EVENT_Down);
                 }
                 else
                 {
@@ -283,7 +301,7 @@ void Frodo::handleEvent(SDL_Event* event)
                 key == SDLK_DOWN ||
                 key == SDLK_LCTRL))
             {
-                TheC64->TheJoystick->keyInput(key, false);
+                TheC64->TheJoystick->handleKeyEvent(key, mod, InputHandler::EVENT_Up);
             }
             else
             {

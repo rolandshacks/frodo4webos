@@ -24,6 +24,8 @@ class OSD : public InputHandler
         int buttonWidth;
         int buttonHeight;
 
+        bool justOpened;
+
         float pos;
 
         /*
