@@ -20,6 +20,7 @@ class OSD : public InputHandler
         SDL_Rect windowRect;
         SDL_Rect fileListFrame;
         SDL_Rect toolbarRect;
+        SDL_Rect titleRect;
 
         int buttonWidth;
         int buttonHeight;
@@ -58,6 +59,8 @@ class OSD : public InputHandler
         int mousePressPosY;
         int mouseX;
         int mouseY;
+        int lastMouseX;
+        int lastMouseY;
 
         std::string currentDirectory;
 
@@ -147,9 +150,12 @@ class OSD : public InputHandler
         void onCommand(const command_t& command);
         void updateCommandState(command_t& command);
         void pushKeyPress(int key);
-        void drawFiles(resource_list_t* res);
+        void drawFiles(float elapsedTime, resource_list_t* res);
         void drawToolbar(resource_list_t* res);
         bool insideFileList(int x, int y);
+        bool insideTitle(int x, int y);
+        bool insideToolbar(int x, int y);
+        void setParentDir();
         std::string getLimitedPath(const std::string& path);
 
     private:

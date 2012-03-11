@@ -52,6 +52,7 @@ void OSD::init()
     windowRect.x = windowRect.y = windowRect.w = windowRect.h = 0;
     fileListFrame.x = fileListFrame.y = fileListFrame.w = fileListFrame.h = 0;
     toolbarRect.x = toolbarRect.y = toolbarRect.w = toolbarRect.h = 0;
+    titleRect.x = titleRect.y = titleRect.w = titleRect.h = 0;
 
     commandList.push_back( command_t ( CMD_WARP, "Warp Mode", "Toggle Warp Mode", false ) );
     commandList.push_back( command_t ( CMD_ENABLE_JOYSTICK1, "Joystick 1", "Enable Joystick 1", false ) );
@@ -77,8 +78,8 @@ void OSD::init()
     scrollPixelOffset = 0.0f;
 
     mousePressed = mouseGesture = false;
-    mouseX = mousePressPosX = 0;
-    mouseY = mousePressPosY = 0;
+    mouseX = lastMouseX = mousePressPosX = 0;
+    mouseY = lastMouseY = mousePressPosY = 0;
 
     memset(&layout, 0, sizeof(layout));
     layout.valid = false;
@@ -173,6 +174,11 @@ void OSD::updateLayout(int w, int h, float elapsedTime, resource_list_t* res)
     windowRect.w = layout.width;
     windowRect.h = h-borderY*2;
 
+    titleRect.x = windowRect.x + 10;
+    titleRect.y = windowRect.y + 4;
+    titleRect.w = windowRect.w - 12 - res->iconClose->getWidth();
+    titleRect.h = layout.titleHeight;
+
     fileListFrame.x = windowRect.x + 16;
     fileListFrame.y = windowRect.y + layout.titleHeight;
     fileListFrame.w = windowRect.w - buttonWidth - 21;
@@ -191,12 +197,6 @@ void OSD::draw(float elapsedTime, resource_list_t* res)
     if (!visible) return;
 
     updateLayout(renderer->getWidth(), renderer->getHeight(), elapsedTime, res);
-
-    SDL_Rect titleRect = { windowRect.x+10,
-                           windowRect.y+4,
-                           windowRect.w,
-                           layout.titleHeight };
-
 
     glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -218,7 +218,7 @@ void OSD::draw(float elapsedTime, resource_list_t* res)
     renderer->enableClipping(fileListFrame.x, fileListFrame.y,
                              fileListFrame.w, fileListFrame.h);
 
-    drawFiles(res);
+    drawFiles(elapsedTime, res);
 
     renderer->disableClipping();
 
@@ -229,7 +229,7 @@ void OSD::draw(float elapsedTime, resource_list_t* res)
     drawToolbar(res);
 }
 
-void OSD::drawFiles(resource_list_t* res)
+void OSD::drawFiles(float elapsedTime, resource_list_t* res)
 {
     if (controlDir != 0)
     {
@@ -241,6 +241,12 @@ void OSD::drawFiles(resource_list_t* res)
     {
         movement *= 0.9f;
     }
+
+    int mouseDeltaX = mouseX - lastMouseX;
+    lastMouseX = mouseX;
+
+    int mouseDeltaY = mouseY - lastMouseY;
+    lastMouseY = mouseY;
 
     // --------------------------------------------------------------
 
@@ -259,7 +265,10 @@ void OSD::drawFiles(resource_list_t* res)
 
     int rowFontOffsetY = (itemHeight - renderer->getFont()->getHeight()) / 2;
 
-    scrollPixelOffset += movement;
+    if (!mousePressed)
+    {
+        scrollPixelOffset += movement;
+    }
 
     if (scrollPixelOffset >= scrollPixelRange)
     {
@@ -272,7 +281,23 @@ void OSD::drawFiles(resource_list_t* res)
         movement = 0.0f;
     }
 
-    int y = (int) -scrollPixelOffset;
+    int scrollPos = scrollPixelOffset;
+    if (mousePressed)
+    {
+        scrollPos += (mousePressPosY - mouseY);
+        movement = 0.1f * (float) (-mouseDeltaY) + 0.9f * movement;
+    }
+
+    if (scrollPos >= scrollPixelRange)
+    {
+        scrollPos = (float) (scrollPixelRange - 1);
+    }
+    if (scrollPos < 0.0f)
+    {
+        scrollPos = 0.0f;
+    }
+
+    int y = (int) -scrollPos;
 
     for (vector<fileinfo_t>::const_iterator it = fileList.begin();
          it != fileList.end();
@@ -427,7 +452,8 @@ void OSD::update()
 		dir = NULL;
 	}
 
-    /*
+    /////////////////////////////////////////////////////////
+
     for (int i=0; i<100; i++)
     {
         char buf[256];
@@ -438,7 +464,6 @@ void OSD::update()
         fileInfo.isDirectory = false;
         fileList.push_back(fileInfo);
     }
-    */
 
 }
 
@@ -458,6 +483,8 @@ OSD::fileinfo_t OSD::getCachedFileInfo(int idx)
 
 void OSD::handleMouseEvent(int x, int y, int eventType)
 {
+    controlDir = 0;
+
     int mouseDeltaX = x - mouseX;
     int mouseDeltaY = y - mouseY;
 
@@ -480,6 +507,11 @@ void OSD::handleMouseEvent(int x, int y, int eventType)
     {
         if (!justOpened)
         {
+            if (mousePressed)
+            {
+                scrollPixelOffset += (mousePressPosY - mouseY);
+            }
+
             if (!mouseGesture)
             {
                 onClick(x, y);
@@ -498,12 +530,13 @@ void OSD::handleMouseEvent(int x, int y, int eventType)
     {
         if (mousePressed && insideFileList(x, y))
         {
-            movement = - (float) mouseDeltaY * 4.0f;
+            //movement = 0.0f;
+
+            //movement = - (float) mouseDeltaY * 4.0f;
             if (!mouseGesture && (abs(mousePressPosX - mouseX) > 5 || abs(mousePressPosY - mouseY) > 5))
             {
                 mouseGesture = true;
             }
-
         }
     }
 }
@@ -528,10 +561,32 @@ void OSD::handleKeyEvent(int key, int sym, int eventType)
     }
 }
 
+bool OSD::insideToolbar(int x, int y)
+{
+    if (x >= toolbarRect.x && x < toolbarRect.x+toolbarRect.w &&
+        y >= toolbarRect.y && y < toolbarRect.y+toolbarRect.h) 
+    {
+        return true;
+    }
+
+    return false;
+}
+
 bool OSD::insideFileList(int x, int y)
 {
     if (x >= fileListFrame.x && x < fileListFrame.x+fileListFrame.w &&
         y >= fileListFrame.y && y < fileListFrame.y+fileListFrame.h) 
+    {
+        return true;
+    }
+
+    return false;
+}
+
+bool OSD::insideTitle(int x, int y)
+{
+    if (x >= titleRect.x && x < titleRect.x+titleRect.w &&
+        y >= titleRect.y && y < titleRect.y+titleRect.h) 
     {
         return true;
     }
@@ -564,20 +619,8 @@ bool OSD::onClick(int x, int y)
             }
             else if (idx == 0)
             {
-                int pos = currentDirectory.rfind(NATIVE_SLASH);
-                if (pos > 1)
-                {
-                    currentDirectory.erase(pos);
-
-                    #ifdef WIN32
-                    if (currentDirectory.size() == 2)
-                    {
-                        currentDirectory.append(1, NATIVE_SLASH);
-                    }
-                    #endif
-                    update();
-                    return true;
-                }
+                setParentDir();
+                return true;
             }
             else
             {
@@ -586,8 +629,11 @@ bool OSD::onClick(int x, int y)
             }
         }
     }
-    else if (x >= toolbarRect.x && x < toolbarRect.x+toolbarRect.w &&
-             y >= toolbarRect.y && y < toolbarRect.y+toolbarRect.h) 
+    else if (insideTitle(x, y))
+    {
+        setParentDir();
+    }
+    else if (insideToolbar(x, y)) 
     {
         int ofsY = y - toolbarRect.y;
         int idx = ofsY / (buttonHeight+1);
@@ -606,6 +652,29 @@ bool OSD::onClick(int x, int y)
     }
 
     return true;
+}
+
+void OSD::setParentDir()
+{
+    int pos = currentDirectory.rfind(NATIVE_SLASH);
+    if (pos >= 0)
+    {
+        if (0 == pos) pos++;
+
+        currentDirectory.erase(pos);
+
+        #ifdef WIN32
+        if (currentDirectory.size() == 2)
+        {
+            currentDirectory.append(1, NATIVE_SLASH);
+        }
+        #endif
+
+        scrollElementTop = scrollPixelRange = 0;
+        scrollPixelOffset = 0.0f;
+
+        update();
+    }
 }
 
 void OSD::onCommand(const OSD::command_t& command)
