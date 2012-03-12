@@ -91,6 +91,7 @@ void Frodo::run()
     Uint32 elapsed = 0;
     Uint32 maxFramerate = 50 / ThePrefs.SkipFrames;
     Uint32 cycleTime = 1000 / maxFramerate;
+    Uint32 cycleTimeOSD = 1000 / 50;
 
     SDL_Event event;
 
@@ -115,12 +116,14 @@ void Frodo::run()
 
             elapsed = SDL_GetTicks() - start;
 
-            if (start == 0 || elapsed >= cycleTime || false == limitFramerate)
+            Uint32 currentCycleTime =  (TheC64->TheDisplay->isOsdActive()) ? cycleTimeOSD : cycleTime;
+
+            if (start == 0 || elapsed >= currentCycleTime || false == limitFramerate)
             {
                 break;
             }
 
-            uint32 waitTime = cycleTime - elapsed;
+            uint32 waitTime = currentCycleTime - elapsed;
             SDL_Delay(waitTime < 4 ? waitTime : 4);
         }
 

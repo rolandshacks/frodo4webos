@@ -234,12 +234,16 @@ void OSD::drawFiles(float elapsedTime, resource_list_t* res)
     if (controlDir != 0)
     {
         movement += controlDir;
-        if (movement > 25.0f) movement = 25.0f;
-        else if (movement < -25.0f) movement = -25.0f;
     }
     else 
     {
         movement *= 0.9f;
+    }
+
+    if (!mousePressed)
+    {
+        if (movement > 25.0f) movement = 25.0f;
+        else if (movement < -25.0f) movement = -25.0f;
     }
 
     int mouseDeltaX = mouseX - lastMouseX;
@@ -285,7 +289,7 @@ void OSD::drawFiles(float elapsedTime, resource_list_t* res)
     if (mousePressed)
     {
         scrollPos += (mousePressPosY - mouseY);
-        movement = 0.1f * (float) (-mouseDeltaY) + 0.9f * movement;
+        movement = 0.5f * (float) (-mouseDeltaY) + 0.5f * movement;
     }
 
     if (scrollPos >= scrollPixelRange)
@@ -454,6 +458,7 @@ void OSD::update()
 
     /////////////////////////////////////////////////////////
 
+    /*
     for (int i=0; i<100; i++)
     {
         char buf[256];
@@ -464,7 +469,7 @@ void OSD::update()
         fileInfo.isDirectory = false;
         fileList.push_back(fileInfo);
     }
-
+    */
 }
 
 OSD::fileinfo_t OSD::getCachedFileInfo(int idx)
@@ -501,6 +506,8 @@ void OSD::handleMouseEvent(int x, int y, int eventType)
         mouseGesture = false;
         mousePressPosX = mouseX;
         mousePressPosY = mouseY;
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
         movement = 0.0f;
     }
     else if (InputHandler::EVENT_Up == eventType)
@@ -515,6 +522,7 @@ void OSD::handleMouseEvent(int x, int y, int eventType)
             if (!mouseGesture)
             {
                 onClick(x, y);
+                movement = 0.0f;
             }
         }
         else
@@ -524,6 +532,8 @@ void OSD::handleMouseEvent(int x, int y, int eventType)
 
         mousePressed = false;
         mouseGesture = false;
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
         //movement = 0.0f;
     }
     else if (InputHandler::EVENT_Move == eventType)

@@ -583,7 +583,7 @@ void C64Display::drawStatusBar()
         }
     }
 
-    if (enabledStatusBar)
+    if (enabledStatusBar && !osd->isShown())
     {
         renderer->drawText(textPos, height-6,
                            speedometer_string,
