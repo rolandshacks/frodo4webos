@@ -169,6 +169,18 @@ int VirtualJoystick::getStickState(int mouseButtons, int mouseX, int mouseY,
             swap(mouseY, mouseY2);
             swap(mouseButtons, mouseButtons2);
         }
+
+        if (mouseX2 <= leftArea)
+        {
+            // dual input on left side
+            mouseX2 = mouseY2 = mouseButtons2 = 0;
+        }
+
+        if (mouseX > leftArea)
+        {
+            // dual input on right side
+            mouseX = mouseY = mouseButtons = 0;
+        }
     }
     else if (mouseX > leftArea)
     {

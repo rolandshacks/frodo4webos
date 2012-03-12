@@ -4,7 +4,7 @@
 	"main": "frodo",
     "icon": "logo.png",
 	"id": "com.emu.app.frodo",
-	"version": "1.0.8",
+	"version": "1.0.9",
 	"vendor": "Frodo",
     "requiredMemory": 15
 }
