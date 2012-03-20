@@ -1,4 +1,3 @@
-
 README
 Frodo for webOS
 
@@ -21,5 +20,5 @@ published under the GPL.
 
 --
 
-Frodo for webOS homepage: https://github.com/rosc77/frodo4webos
+Frodo for webOS homepage: http://www.computerfuncompany.com/
 Frodo homepage: http://frodo.cebix.net
